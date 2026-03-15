@@ -38,6 +38,12 @@ export default function DailyCountsChart({ city, dateFrom = '2026-02-01', dateTo
 
   return (
     <div className="chart-container">
+      <div className="chart-legend">
+        <span className="legend-item"><span className="legend-swatch" style={{ background: cityColor }} />Weekday</span>
+        <span className="legend-item"><span className="legend-swatch" style={{ background: `${cityColor}44` }} />Weekend/holiday</span>
+        <span className="legend-item"><span className="legend-swatch" style={{ background: '#E24B4A' }} />Post-crisis weekday</span>
+        <span className="legend-item"><span className="legend-swatch" style={{ background: 'rgba(226,75,74,0.3)' }} />Post-crisis weekend</span>
+      </div>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />

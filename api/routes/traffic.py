@@ -354,3 +354,67 @@ def school_holiday_effect(
         "summary": {"term_avg": term_avg, "holiday_avg": hol_avg, "effect_pct": effect_pct},
         "monthly": data,
     }
+
+
+@router.get("/calendar-events")
+def calendar_events(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    date_from: str = Query("2025-03-01"),
+    date_to: str = Query("2026-03-31"),
+):
+    """
+    Return public holidays, school holiday periods, and major events
+    for a date range. Used for chart annotations.
+    """
+    con = get_connection()
+    hol_col = "is_public_holiday_nsw" if city == "sydney" else "is_public_holiday_vic"
+    school_col = "is_school_holiday_nsw" if city == "sydney" else "is_school_holiday_vic"
+
+    # Public holidays
+    holidays = con.execute(f"""
+        SELECT date, event_name
+        FROM calendar
+        WHERE {hol_col} = true
+          AND date BETWEEN '{date_from}' AND '{date_to}'
+        ORDER BY date
+    """).fetchall()
+
+    # School holiday ranges (find contiguous blocks)
+    school_days = con.execute(f"""
+        SELECT date FROM calendar
+        WHERE {school_col} = true
+          AND date BETWEEN '{date_from}' AND '{date_to}'
+        ORDER BY date
+    """).fetchall()
+
+    # Group school days into contiguous ranges
+    school_ranges = []
+    if school_days:
+        from datetime import timedelta
+        current_start = school_days[0][0]
+        current_end = school_days[0][0]
+        for row in school_days[1:]:
+            d = row[0]
+            if (d - current_end).days <= 1:
+                current_end = d
+            else:
+                school_ranges.append({"start": str(current_start), "end": str(current_end)})
+                current_start = d
+                current_end = d
+        school_ranges.append({"start": str(current_start), "end": str(current_end)})
+
+    # Named events (non-holiday events like AFL GF, Melbourne Cup)
+    events = con.execute(f"""
+        SELECT date, event_name FROM calendar
+        WHERE event_name IS NOT NULL
+          AND date BETWEEN '{date_from}' AND '{date_to}'
+        ORDER BY date
+    """).fetchall()
+
+    con.close()
+    return {
+        "city": city,
+        "public_holidays": [{"date": str(h[0]), "name": h[1] or "Public holiday"} for h in holidays],
+        "school_holidays": school_ranges,
+        "events": [{"date": str(e[0]), "name": e[1]} for e in events],
+    }

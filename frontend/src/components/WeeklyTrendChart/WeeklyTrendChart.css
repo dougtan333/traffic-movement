@@ -11,3 +11,32 @@
   font-size: 0.8125rem;
 }
 .chart-error { color: var(--color-danger); }
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-swatch {
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+}
+.school-swatch {
+  width: 14px;
+  height: 10px;
+  background: #e9c46a;
+  opacity: 0.35;
+  border-radius: 2px;
+}
+.crisis-line {
+  width: 14px;
+  height: 0;
+  border-top: 1.5px dashed #c4342d;
+}
