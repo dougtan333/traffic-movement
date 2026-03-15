@@ -1,19 +1,20 @@
 .city-selector {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 .city-btn {
-  padding: 8px 20px;
-  border-radius: var(--radius);
+  padding: 7px 18px;
+  border-radius: 100px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
 }
-.city-btn:hover { border-color: #ccc; }
+.city-btn:hover { border-color: var(--color-border-strong); color: var(--color-text); }
 .city-btn.active.sydney {
   background: var(--color-sydney);
   color: white;
