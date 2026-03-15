@@ -1,0 +1,356 @@
+"""
+Traffic data endpoints — hourly profiles, weekly trends, daily counts.
+
+All queries filter Sydney to the reliable network (DEC-012).
+Melbourne uses the full SCATS network.
+"""
+
+from fastapi import APIRouter, Query
+from typing import Optional
+from api.db import get_connection
+from api.constants import RELIABLE_NSW_IDS
+
+router = APIRouter()
+
+
+def _station_filter(city: str) -> str:
+    """Build the WHERE clause for station filtering by city."""
+    if city == "sydney":
+        ids = ",".join(f"'{s}'" for s in RELIABLE_NSW_IDS)
+        return f"h.station_id IN ({ids})"
+    elif city == "melbourne":
+        return "h.state = 'VIC'"
+    else:
+        return "1=1"
+
+
+@router.get("/hourly-profile")
+def hourly_profile(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    year: int = Query(2025),
+):
+    """
+    Weekday hourly average vehicles per station for a given city and year.
+    Returns 24 data points (hours 0–23).
+    Sydney uses reliable network only (26 stations).
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    rows = con.execute(f"""
+        SELECT hour_of_day,
+               avg(vehicle_count)::int as avg_count,
+               count(DISTINCT station_id) as stations
+        FROM hourly_counts h
+        WHERE {filt}
+          AND is_weekday = true
+          AND ts_hour >= '{year}-01-01'
+          AND ts_hour < '{year + 1}-01-01'
+        GROUP BY hour_of_day
+        ORDER BY hour_of_day
+    """).fetchall()
+    con.close()
+    return {
+        "city": city,
+        "year": year,
+        "data": [{"hour": r[0], "avg_count": r[1], "stations": r[2]} for r in rows],
+    }
+
+
+@router.get("/hourly-profile-multi")
+def hourly_profile_multi(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    years: str = Query("2019,2020,2021,2024,2025"),
+):
+    """
+    Weekday hourly profiles for multiple years, for overlay comparison.
+    Returns a dict keyed by year, each with 24 hourly data points.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    year_list = [int(y.strip()) for y in years.split(",")]
+    result = {}
+    for year in year_list:
+        rows = con.execute(f"""
+            SELECT hour_of_day, avg(vehicle_count)::int as avg_count
+            FROM hourly_counts h
+            WHERE {filt} AND is_weekday = true
+              AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+            GROUP BY hour_of_day ORDER BY hour_of_day
+        """).fetchall()
+        result[str(year)] = [{"hour": r[0], "avg_count": r[1]} for r in rows]
+    con.close()
+    return {"city": city, "years": year_list, "data": result}
+
+
+@router.get("/weekly-trend")
+def weekly_trend(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    weeks: int = Query(26, ge=4, le=104),
+):
+    """
+    Weekly weekday average vehicles per station, most recent N weeks.
+    Used for trend lines and fuel crisis tracking.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    rows = con.execute(f"""
+        SELECT date_trunc('week', CAST(ts_hour AS DATE))::DATE as week,
+               sum(vehicle_count)::bigint
+                   / count(DISTINCT CAST(ts_hour AS DATE))
+                   / count(DISTINCT station_id) as avg_per_station,
+               count(DISTINCT CAST(ts_hour AS DATE)) as weekdays,
+               count(DISTINCT station_id) as stations
+        FROM hourly_counts h
+        WHERE {filt}
+          AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+        GROUP BY 1
+        HAVING count(DISTINCT CAST(ts_hour AS DATE)) >= 3
+        ORDER BY 1 DESC
+        LIMIT {weeks}
+    """).fetchall()
+    con.close()
+    data = [{"week": str(r[0]), "avg_per_station": int(r[1]),
+             "weekdays": r[2], "stations": r[3]} for r in reversed(rows)]
+    return {"city": city, "weeks": len(data), "data": data}
+
+
+@router.get("/daily-counts")
+def daily_counts(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    date_from: str = Query("2026-02-01"),
+    date_to: str = Query("2026-03-31"),
+):
+    """
+    Daily total and per-station average, with calendar context.
+    Returns one row per day with weekday/holiday flags.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    holiday_col = "c.is_public_holiday_nsw" if city == "sydney" else "c.is_public_holiday_vic"
+    rows = con.execute(f"""
+        SELECT CAST(h.ts_hour AS DATE) as day,
+               sum(h.vehicle_count)::bigint as daily_total,
+               sum(h.vehicle_count)::bigint / count(DISTINCT h.station_id) as avg_per_station,
+               count(DISTINCT h.station_id) as stations,
+               c.day_of_week,
+               c.is_weekday,
+               {holiday_col} as is_holiday
+        FROM hourly_counts h
+        JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
+        WHERE {filt}
+          AND CAST(h.ts_hour AS DATE) BETWEEN '{date_from}' AND '{date_to}'
+        GROUP BY 1, c.day_of_week, c.is_weekday, {holiday_col}
+        ORDER BY 1
+    """).fetchall()
+    con.close()
+    data = [{
+        "day": str(r[0]),
+        "daily_total": int(r[1]),
+        "avg_per_station": int(r[2]),
+        "stations": int(r[3]),
+        "day_of_week": int(r[4]),
+        "is_weekday": bool(r[5]),
+        "is_holiday": bool(r[6]),
+    } for r in rows]
+    return {"city": city, "date_from": date_from, "date_to": date_to, "data": data}
+
+
+@router.get("/day-of-week")
+def day_of_week(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    year: int = Query(2025),
+):
+    """
+    Day-of-week average (Mon–Sun) for a given year.
+    Business hours only (7am–6pm) to capture the commuter signal.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    rows = con.execute(f"""
+        SELECT day_of_week, avg(vehicle_count)::int as avg_count
+        FROM hourly_counts h
+        WHERE {filt}
+          AND hour_of_day BETWEEN 7 AND 18
+          AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+        GROUP BY day_of_week ORDER BY day_of_week
+    """).fetchall()
+    con.close()
+    day_names = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
+    data = [{"day_num": r[0], "day": day_names.get(r[0], "?"), "avg_count": r[1]} for r in rows]
+    return {"city": city, "year": year, "data": data}
+
+
+@router.get("/heatmap")
+def heatmap(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+    weeks: int = Query(12, ge=4, le=52),
+):
+    """
+    Hour-of-day × day-of-week heatmap.
+    Returns a 7×24 grid of average vehicle counts per station,
+    averaged over the most recent N weeks.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    rows = con.execute(f"""
+        SELECT day_of_week, hour_of_day,
+               avg(vehicle_count)::int as avg_count
+        FROM hourly_counts h
+        WHERE {filt}
+          AND ts_hour >= CURRENT_DATE - INTERVAL '{weeks} weeks'
+        GROUP BY day_of_week, hour_of_day
+        ORDER BY day_of_week, hour_of_day
+    """).fetchall()
+    con.close()
+    day_names = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
+    data = [{"day_num": r[0], "day": day_names.get(r[0], "?"),
+             "hour": r[1], "avg_count": r[2]} for r in rows]
+    return {"city": city, "weeks": weeks, "data": data}
+
+
+@router.get("/station-profile")
+def station_profile(
+    station_id: str = Query(...),
+    year: int = Query(2025),
+):
+    """
+    Hourly weekday profile for a single station.
+    Also returns station metadata (road name, suburb, coords).
+    """
+    con = get_connection()
+    meta = con.execute(f"""
+        SELECT station_id, road_name, suburb, road_type, latitude, longitude
+        FROM stations WHERE station_id = '{station_id}'
+    """).fetchone()
+    if not meta:
+        con.close()
+        return {"error": f"Station {station_id} not found"}
+
+    rows = con.execute(f"""
+        SELECT hour_of_day, avg(vehicle_count)::int as avg_count,
+               count(*) as sample_hours
+        FROM hourly_counts
+        WHERE station_id = '{station_id}'
+          AND is_weekday = true
+          AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+        GROUP BY hour_of_day ORDER BY hour_of_day
+    """).fetchall()
+    con.close()
+
+    return {
+        "station": {
+            "id": meta[0], "road_name": meta[1], "suburb": meta[2],
+            "road_type": meta[3], "lat": meta[4], "lon": meta[5],
+        },
+        "year": year,
+        "hourly": [{"hour": r[0], "avg_count": r[1], "samples": r[2]} for r in rows],
+    }
+
+
+@router.get("/month-on-month")
+def month_on_month(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+):
+    """
+    Monthly average weekday traffic per station with YoY % change.
+    Returns each calendar month for the last 24 months, plus the same
+    month from the prior year for comparison.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    rows = con.execute(f"""
+        SELECT date_trunc('month', CAST(ts_hour AS DATE))::DATE as month,
+               avg(vehicle_count)::int as avg_per_station,
+               count(DISTINCT station_id) as stations,
+               count(DISTINCT CAST(ts_hour AS DATE)) as days_reporting
+        FROM hourly_counts h
+        WHERE {filt}
+          AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+        GROUP BY 1
+        ORDER BY 1
+    """).fetchall()
+    con.close()
+
+    # Build lookup for YoY comparison
+    by_month = {}
+    for r in rows:
+        key = (r[0].year, r[0].month)
+        by_month[key] = {"month": str(r[0]), "avg": r[1], "stations": r[2], "days": r[3]}
+
+    data = []
+    for r in rows:
+        entry = {"month": str(r[0]), "avg": r[1], "stations": r[2], "days": r[3]}
+        # Find same month previous year
+        yoy_key = (r[0].year - 1, r[0].month)
+        if yoy_key in by_month:
+            yoy_avg = by_month[yoy_key]["avg"]
+            entry["yoy_avg"] = yoy_avg
+            entry["yoy_pct"] = round((r[1] - yoy_avg) / yoy_avg * 100, 1) if yoy_avg else None
+        else:
+            entry["yoy_avg"] = None
+            entry["yoy_pct"] = None
+        data.append(entry)
+
+    return {"city": city, "data": data}
+
+
+@router.get("/school-holiday-effect")
+def school_holiday_effect(
+    city: str = Query(..., pattern="^(sydney|melbourne)$"),
+):
+    """
+    Compare average weekday traffic during school holidays vs term time.
+    Uses the calendar table's school holiday flags (state-specific).
+    Returns paired data for the last 12 months.
+    """
+    con = get_connection()
+    filt = _station_filter(city)
+    hol_col = "c.is_school_holiday_nsw" if city == "sydney" else "c.is_school_holiday_vic"
+
+    rows = con.execute(f"""
+        SELECT
+            {hol_col} as is_school_holiday,
+            date_trunc('month', CAST(h.ts_hour AS DATE))::DATE as month,
+            avg(h.vehicle_count)::int as avg_per_station,
+            count(DISTINCT CAST(h.ts_hour AS DATE)) as days_reporting
+        FROM hourly_counts h
+        JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
+        WHERE {filt}
+          AND c.is_weekday = true
+          AND h.ts_hour >= CURRENT_DATE - INTERVAL '12 months'
+        GROUP BY 1, 2
+        ORDER BY 2, 1
+    """).fetchall()
+    con.close()
+
+    # Also get overall averages
+    term_rows = [r for r in rows if not r[0]]
+    hol_rows = [r for r in rows if r[0]]
+    term_avg = sum(r[2] for r in term_rows) // len(term_rows) if term_rows else 0
+    hol_avg = sum(r[2] for r in hol_rows) // len(hol_rows) if hol_rows else 0
+    effect_pct = round((hol_avg - term_avg) / term_avg * 100, 1) if term_avg else 0
+
+    monthly = {}
+    for r in rows:
+        m = str(r[1])
+        if m not in monthly:
+            monthly[m] = {}
+        key = "holiday" if r[0] else "term"
+        monthly[m][key] = {"avg": r[2], "days": r[3]}
+
+    data = []
+    for m in sorted(monthly.keys()):
+        entry = {"month": m}
+        entry["term"] = monthly[m].get("term", {}).get("avg")
+        entry["holiday"] = monthly[m].get("holiday", {}).get("avg")
+        if entry["term"] and entry["holiday"]:
+            entry["effect_pct"] = round((entry["holiday"] - entry["term"]) / entry["term"] * 100, 1)
+        else:
+            entry["effect_pct"] = None
+        data.append(entry)
+
+    return {
+        "city": city,
+        "summary": {"term_avg": term_avg, "holiday_avg": hol_avg, "effect_pct": effect_pct},
+        "monthly": data,
+    }

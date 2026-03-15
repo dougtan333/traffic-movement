@@ -1,0 +1,28 @@
+# Data files (large, not for git)
+db/amip.duckdb
+road_traffic_counts_hourly_permanent/
+road_traffic_counts_station_reference.csv
+traffic_signal_volume_data_*/
+Traffic_Lights.csv
+rms-dataset-documentation-nsw-traffic-volume-counts_0.pdf
+reports/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

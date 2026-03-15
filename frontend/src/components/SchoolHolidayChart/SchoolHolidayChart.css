@@ -1,0 +1,24 @@
+.school-holiday-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.school-holiday-summary {
+  display: flex;
+  gap: 1.5rem;
+}
+.sh-metric {
+  display: flex;
+  flex-direction: column;
+}
+.sh-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.sh-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.sh-effect {
+  color: var(--color-danger);
+}

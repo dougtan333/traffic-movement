@@ -1,0 +1,27 @@
+.month-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.month-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+.month-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.month-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.month-table .yoy.up { color: var(--color-success); }
+.month-table .yoy.down { color: var(--color-danger); }
+.month-table .yoy.flat { color: var(--color-text-muted); }
+.month-table tbody tr:hover {
+  background: var(--color-bg);
+}

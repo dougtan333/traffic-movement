@@ -1,0 +1,44 @@
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+.app-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.panel-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media (max-width: 700px) {
+  .panel-grid { grid-template-columns: 1fr; }
+  .app-header { flex-direction: column; gap: 1rem; }
+}
+.station-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.app-footer {
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+.app-footer p {
+  font-size: 0.75rem;
+  color: var(--color-text-light);
+}
