@@ -5,7 +5,7 @@
 
 ## Current stage
 
-**Dashboard build — 9-panel interactive dashboard live with real data.**
+**Dashboard build — 5-tab dashboard with traffic, speed, PT patronage, and fleet data.**
 
 Last updated: 16 March 2026
 
@@ -47,6 +47,14 @@ Data pipeline is built and loaded (94M+ rows). First visualisations have been pr
 - [x] City toggle (Sydney/Melbourne) switches all panels
 - [x] Station explorer: Leaflet map with ~3,860 Melbourne / 26 Sydney clickable stations, profile card on click
 - [x] Vite space-in-path workaround documented (symlink to /tmp/amip-frontend)
+- [x] Tab navigation: Monitor, Patterns, Transport, Explorer, Analysis
+- [x] Design polish: DM Sans typography, editorial palette, uppercase labels
+- [x] Bluetooth speed polling live — 4,711 links per 5-min interval
+- [x] SpeedPanel component on Monitor tab (Melbourne only)
+- [x] VIC PT patronage data ingested (monthly + day-type, 2018–Nov 2025)
+- [x] Vehicle registration data ingested (5.94M vehicles by fuel type, Q4 2025)
+- [x] Transport tab: PT patronage stacked area chart + fleet fuel-type breakdown
+- [x] Victoria-only focus confirmed (DEC-016) — NSW data retained but no new NSW sources
 - [x] First chart: Sydney reliable network hourly profile (2019 vs 2020 vs 2021 vs 2024 vs 2025)
 - [x] Identified NSW sensor degradation issue — only 26 of 295 stations have reliable data across years
 - [x] Established "reliable network" filter: 26 Sydney stations with consistent data 2019–2025
@@ -60,12 +68,12 @@ Data pipeline is built and loaded (94M+ rows). First visualisations have been pr
 
 ## Immediate next steps
 
-1. Download latest SCATS data as March 2026 progresses — need post-crisis weekdays (w/c 16 Mar+) to detect behavioural shift
-2. Design improvements — typography, spacing, responsive polish
-3. Add navigation/tabs to organise panels (dashboard is long — consider sections or tabs)
-4. Additional views: corridor comparison, event overlay (AFL GF, Melbourne Cup), public holiday annotations on all charts
-5. VIC Bluetooth API polling for speed data
-6. Plan API-based data refresh (TfNSW CKAN API for incremental NSW updates)
+1. Fresh SCATS data — download latest March 2026 to detect fuel crisis behavioural shift
+2. PT patronage day-type chart — add the weekday/school-hol/weekend comparison to Transport tab
+3. Cross-city normalised comparison view (if retaining Sydney)
+4. Speed trend chart — will auto-populate as Bluetooth poller accumulates history
+5. Deployment planning (OPEN-004)
+6. TIRTL dataset inspection when available (OPEN-006)
 
 ---
 

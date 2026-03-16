@@ -4,7 +4,7 @@
 ---
 
 ## Last updated
-16 March 2026 — 9-panel dashboard live. API + React frontend working. Both cities verified.
+16 March 2026 — 5-tab dashboard with traffic counts, speed, PT patronage, fleet data. Bluetooth poller running. VIC-only focus confirmed.
 
 ---
 

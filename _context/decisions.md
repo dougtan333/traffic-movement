@@ -122,6 +122,14 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
+### DEC-016 — Victoria-only focus for new data sources
+**Decision:** All new data sources from this point forward are Victorian only. NSW data already ingested (SCATS counts, 26-station reliable network) is retained, but no new NSW datasets will be added.
+**Rationale:** VIC open data is consistently more comprehensive, better documented, and more granular than NSW equivalents. NSW traffic sensor network is degrading (only 26 reliable stations from 295). VIC provides PT patronage, vehicle registrations, cycling data, Bluetooth speed, and TIRTL — NSW has no comparable open datasets for most of these. Focusing on one state deeply produces a better product than covering two states thinly.
+**Ruled out:** Continuing to add NSW data sources — quality gap too large, effort better spent on VIC depth.
+**Status:** Confirmed ✅
+
+---
+
 ## Open decisions
 
 ### OPEN-001 — Authentication approach
