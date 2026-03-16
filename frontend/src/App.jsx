@@ -16,6 +16,8 @@ import StationProfile from './components/StationProfile/StationProfile';
 import MonthTable from './components/MonthTable/MonthTable';
 import SchoolHolidayChart from './components/SchoolHolidayChart/SchoolHolidayChart';
 import SpeedPanel from './components/SpeedPanel/SpeedPanel';
+import PTPatronageChart from './components/PTPatronageChart/PTPatronageChart';
+import FleetBreakdown from './components/FleetBreakdown/FleetBreakdown';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
 import './App.css';
@@ -23,6 +25,7 @@ import './App.css';
 const TABS = [
   { id: 'monitor', label: 'Monitor' },
   { id: 'patterns', label: 'Patterns' },
+  { id: 'transport', label: 'Transport' },
   { id: 'explorer', label: 'Explorer' },
   { id: 'analysis', label: 'Analysis' },
 ];
@@ -84,6 +87,19 @@ export default function App() {
                 <DayOfWeekChart city={city} />
               </section>
             </div>
+          </>
+        )}
+
+        {tab === 'transport' && (
+          <>
+            <section className="panel">
+              <h3 className="panel-title">Public transport patronage — Victoria</h3>
+              <PTPatronageChart />
+            </section>
+            <section className="panel">
+              <h3 className="panel-title">Vehicle fleet — fuel type breakdown</h3>
+              <FleetBreakdown />
+            </section>
           </>
         )}
 

@@ -1,0 +1,12 @@
+.pt-patronage {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.pt-summary {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.pt-summary strong {
+  color: var(--color-text);
+}
