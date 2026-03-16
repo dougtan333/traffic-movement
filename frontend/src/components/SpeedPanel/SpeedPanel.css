@@ -3,6 +3,26 @@
   flex-direction: column;
   gap: 1.25rem;
 }
+.speed-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.speed-filter {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  min-width: 200px;
+}
+.speed-filter:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
 .speed-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

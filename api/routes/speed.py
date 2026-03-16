@@ -1,52 +1,89 @@
 """
 Speed data API routes — serves Bluetooth travel time data for Melbourne.
+Supports filtering by road name, freeway/arterial, and corridor.
 """
+from typing import Optional
 from fastapi import APIRouter, Query
 from ..db import get_connection
 
 router = APIRouter(prefix="/api/speed", tags=["speed"])
 
 
+def _link_filter(road: Optional[str], freeway_only: bool) -> str:
+    """Build a SQL WHERE clause fragment for link filtering."""
+    clauses = ["so.speed_kmh > 0"]
+    if road:
+        clauses.append(f"bl.road_name = '{road}'")
+    if freeway_only:
+        clauses.append("bl.is_freeway = true")
+    return " AND ".join(clauses)
+
+
+@router.get("/roads")
+def speed_roads():
+    """List available roads with link counts, for the filter dropdown."""
+    con = get_connection()
+    rows = con.execute("""
+        SELECT road_name, count(*) as links, bool_or(is_freeway) as is_freeway
+        FROM bluetooth_links
+        WHERE road_name != ''
+        GROUP BY road_name
+        HAVING count(*) >= 3
+        ORDER BY count(*) DESC
+    """).fetchall()
+    con.close()
+    return {
+        "roads": [
+            {"name": r[0], "links": r[1], "is_freeway": r[2]}
+            for r in rows
+        ],
+    }
+
+
 @router.get("/snapshot")
-def speed_snapshot():
-    """
-    Latest speed snapshot across the Melbourne Bluetooth network.
-    Returns network-wide summary plus per-link details for the most recent interval.
-    """
+def speed_snapshot(
+    road: Optional[str] = Query(None, description="Filter to a specific road"),
+    freeways: bool = Query(False, description="Show freeways only"),
+):
+    """Latest speed snapshot — optionally filtered by road or freeway."""
     con = get_connection()
     latest = con.execute("SELECT max(ts_interval) FROM speed_observations").fetchone()[0]
     if not latest:
         con.close()
-        return {"status": "no_data", "message": "No speed data yet — poller may not be running"}
+        return {"status": "no_data", "message": "No speed data yet"}
 
-    summary = con.execute("""
+    filt = _link_filter(road, freeways)
+    join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
+
+    summary = con.execute(f"""
         SELECT
             count(*) as links,
-            avg(speed_kmh)::int as avg_speed,
-            min(speed_kmh) as min_speed,
-            max(speed_kmh) as max_speed,
-            avg(delay_sec)::int as avg_delay,
-            count(*) FILTER (WHERE speed_kmh < 20) as slow_links,
-            count(*) FILTER (WHERE speed_kmh >= 20 AND speed_kmh < 40) as moderate_links,
-            count(*) FILTER (WHERE speed_kmh >= 40) as free_flow_links
-        FROM speed_observations
-        WHERE ts_interval = ?
-          AND speed_kmh > 0
+            avg(so.speed_kmh)::int as avg_speed,
+            min(so.speed_kmh) as min_speed,
+            max(so.speed_kmh) as max_speed,
+            avg(so.delay_sec)::int as avg_delay,
+            count(*) FILTER (WHERE so.speed_kmh < 20) as slow_links,
+            count(*) FILTER (WHERE so.speed_kmh >= 20 AND so.speed_kmh < 40) as moderate_links,
+            count(*) FILTER (WHERE so.speed_kmh >= 40) as free_flow_links
+        FROM speed_observations so {join}
+        WHERE so.ts_interval = ? AND {filt}
     """, [latest]).fetchone()
 
-    # Slowest 10 links
-    slowest = con.execute("""
-        SELECT route_id, speed_kmh, travel_time_sec, delay_sec, route_length_m
-        FROM speed_observations
-        WHERE ts_interval = ? AND speed_kmh > 0
-        ORDER BY speed_kmh ASC
+    slowest = con.execute(f"""
+        SELECT so.route_id, bl.link_name, so.speed_kmh, so.travel_time_sec,
+               so.delay_sec, so.route_length_m
+        FROM speed_observations so {join}
+        WHERE so.ts_interval = ? AND {filt}
+        ORDER BY so.speed_kmh ASC
         LIMIT 10
     """, [latest]).fetchall()
-
     con.close()
+
+    filter_label = road or ("Freeways" if freeways else "All links")
 
     return {
         "timestamp": str(latest),
+        "filter": filter_label,
         "summary": {
             "links": summary[0],
             "avg_speed_kmh": summary[1],
@@ -58,36 +95,41 @@ def speed_snapshot():
             "free_flow_links": summary[7],
         },
         "slowest": [
-            {"link_id": r[0], "speed_kmh": r[1], "travel_time_sec": r[2],
-             "delay_sec": r[3], "length_m": r[4]}
+            {"link_id": r[0], "name": r[1], "speed_kmh": r[2],
+             "travel_time_sec": r[3], "delay_sec": r[4], "length_m": r[5]}
             for r in slowest
         ],
     }
 
 
 @router.get("/trend")
-def speed_trend(hours: int = Query(4, ge=1, le=48)):
-    """
-    Network-wide average speed trend over the last N hours.
-    Returns one point per 5-min interval.
-    """
+def speed_trend(
+    hours: int = Query(4, ge=1, le=48),
+    road: Optional[str] = Query(None, description="Filter to a specific road"),
+    freeways: bool = Query(False, description="Show freeways only"),
+):
+    """Speed trend over the last N hours — optionally filtered."""
     con = get_connection()
+    filt = _link_filter(road, freeways)
+    join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
+
     rows = con.execute(f"""
         SELECT
-            ts_interval,
-            avg(speed_kmh)::int as avg_speed,
+            so.ts_interval,
+            avg(so.speed_kmh)::int as avg_speed,
             count(*) as links_reporting,
-            count(*) FILTER (WHERE speed_kmh < 20) as slow_links
-        FROM speed_observations
-        WHERE ts_interval >= (SELECT max(ts_interval) FROM speed_observations) - INTERVAL '{hours} hours'
-          AND speed_kmh > 0
-        GROUP BY ts_interval
-        ORDER BY ts_interval
+            count(*) FILTER (WHERE so.speed_kmh < 20) as slow_links
+        FROM speed_observations so {join}
+        WHERE so.ts_interval >= (SELECT max(ts_interval) FROM speed_observations) - INTERVAL '{hours} hours'
+          AND {filt}
+        GROUP BY so.ts_interval
+        ORDER BY so.ts_interval
     """).fetchall()
     con.close()
 
     return {
         "hours": hours,
+        "filter": road or ("Freeways" if freeways else "All links"),
         "intervals": len(rows),
         "data": [
             {"ts": str(r[0]), "avg_speed": r[1], "links": r[2], "slow_links": r[3]}
