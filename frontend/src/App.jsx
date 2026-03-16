@@ -17,6 +17,7 @@ import MonthTable from './components/MonthTable/MonthTable';
 import SchoolHolidayChart from './components/SchoolHolidayChart/SchoolHolidayChart';
 import SpeedPanel from './components/SpeedPanel/SpeedPanel';
 import PTPatronageChart from './components/PTPatronageChart/PTPatronageChart';
+import PTDayTypeChart from './components/PTDayTypeChart/PTDayTypeChart';
 import FleetBreakdown from './components/FleetBreakdown/FleetBreakdown';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
@@ -95,6 +96,10 @@ export default function App() {
             <section className="panel">
               <h3 className="panel-title">Public transport patronage — Victoria</h3>
               <PTPatronageChart />
+            </section>
+            <section className="panel">
+              <h3 className="panel-title">Daily patronage by day type (2025 avg)</h3>
+              <PTDayTypeChart />
             </section>
             <section className="panel">
               <h3 className="panel-title">Vehicle fleet — fuel type breakdown</h3>
