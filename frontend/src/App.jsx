@@ -15,6 +15,7 @@ import StationMap from './components/StationMap/StationMap';
 import StationProfile from './components/StationProfile/StationProfile';
 import MonthTable from './components/MonthTable/MonthTable';
 import SchoolHolidayChart from './components/SchoolHolidayChart/SchoolHolidayChart';
+import SpeedPanel from './components/SpeedPanel/SpeedPanel';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
 import './App.css';
@@ -63,6 +64,7 @@ export default function App() {
               <h3 className="panel-title">Daily traffic</h3>
               <DailyCountsChart city={city} />
             </section>
+            <SpeedPanel city={city} />
           </>
         )}
 

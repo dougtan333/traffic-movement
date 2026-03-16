@@ -146,3 +146,34 @@ Vite 8 has a `$RefreshReg$` error with `@vitejs/plugin-react` v6. Pinned to Vite
 | `traffic_signal_volume_data_*/` | Raw VIC SCATS monthly CSVs (~3.5 GB total) |
 | `Traffic_Lights.csv` | VIC signal site coordinates |
 | `reports/` | Weekly monitor JSON output |
+
+
+---
+
+## Bluetooth Speed Polling (VIC)
+
+Polls the Transport Victoria Bluetooth Travel Time API for real-time speed and congestion data on Melbourne freeways and arterials. Stores snapshots in `speed_observations` table.
+
+### Setup
+
+1. Get an API key from https://opendata.transport.vic.gov.au (Profile > API Key)
+2. Edit `.env` in the project root:
+   ```
+   VIC_BLUETOOTH_API_KEY=your_actual_key
+   ```
+
+### Running
+
+```bash
+# Single poll (test your key works)
+python3 scripts/poll_bluetooth.py
+
+# Continuous polling every 5 minutes (leave running in background)
+python3 scripts/poll_bluetooth.py --loop
+```
+
+First run fetches all route reference data into `bluetooth_routes`. Subsequent polls append to `speed_observations`.
+
+### What it collects
+
+Per link, every 5 minutes: speed (km/h), travel time (sec), delay (sec), congestion index (std devs from expected), data status.

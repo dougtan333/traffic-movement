@@ -1,3 +1,9 @@
+# Environment / secrets
+.env
+
+# Logs
+logs/
+
 # Data files (large, not for git)
 db/amip.duckdb
 road_traffic_counts_hourly_permanent/
