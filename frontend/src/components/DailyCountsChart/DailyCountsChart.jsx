@@ -6,7 +6,7 @@
  */
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ReferenceLine, Cell,
+  CartesianGrid, Tooltip, Cell,
 } from 'recharts';
 import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
@@ -60,11 +60,6 @@ export default function DailyCountsChart({ city, dateFrom = '2026-02-01', dateTo
               const dow = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.day_of_week] || '';
               return `${dow} ${d.day}${d.is_holiday ? ' (holiday)' : ''}`;
             }}
-          />
-          <ReferenceLine
-            x={chartData.find(d => d.day >= CRISIS_DATE)?.label}
-            stroke="#E24B4A"
-            strokeDasharray="5 3"
           />
           <Bar dataKey="avg_per_station" radius={[2, 2, 0, 0]}>
             {chartData.map((entry, i) => (

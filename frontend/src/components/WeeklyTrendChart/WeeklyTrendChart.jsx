@@ -40,19 +40,12 @@ export default function WeeklyTrendChart({ city }) {
     return closest?.label;
   };
 
-  // Filter events to major ones worth annotating (avoid clutter)
-  const majorEvents = (calData?.events || []).filter(e =>
-    e.name.includes('AFL') || e.name.includes('Melbourne Cup') ||
-    e.name.includes('NRL') || e.name.includes('Australian Open') ||
-    e.name.includes("New Year")
-  );
-
   return (
     <div className="chart-container">
       <div className="chart-legend">
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS[city] }} />Weekly avg</span>
         <span className="legend-item"><span className="legend-swatch school-swatch" />School holidays</span>
-        <span className="legend-item"><span className="legend-line crisis-line" />Fuel crisis</span>
+        <span className="legend-item"><span className="legend-line crisis-line" />Iran conflict</span>
       </div>
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
@@ -83,29 +76,13 @@ export default function WeeklyTrendChart({ city }) {
             );
           })}
 
-          {/* Major event markers */}
-          {majorEvents.map((evt, i) => {
-            const x = dateToLabel(evt.date);
-            if (!x) return null;
-            return (
-              <ReferenceLine
-                key={`evt-${i}`}
-                x={x}
-                stroke="#9c9c98"
-                strokeDasharray="3 3"
-                strokeWidth={1}
-                label={{ value: evt.name.replace(/ \(projected\)/, ''), position: 'insideTopRight', fontSize: 9, fill: '#9c9c98' }}
-              />
-            );
-          })}
-
-          {/* Fuel crisis marker */}
+          {/* Iran conflict marker */}
           <ReferenceLine
             x={chartData.find(d => d.week >= CRISIS_DATE)?.label}
             stroke="#c4342d"
             strokeDasharray="5 3"
             strokeWidth={1.5}
-            label={{ value: 'Fuel crisis', position: 'top', fontSize: 10, fill: '#c4342d' }}
+            label={{ value: 'Iran conflict', position: 'top', fontSize: 10, fill: '#c4342d' }}
           />
 
           <Line
