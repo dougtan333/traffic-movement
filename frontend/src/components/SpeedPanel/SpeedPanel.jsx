@@ -99,7 +99,7 @@ export default function SpeedPanel({ city }) {
         </div>
         <div className="speed-metric">
           <span className="sp-label">Avg delay</span>
-          <span className="sp-value">{summary.avg_delay_sec}<small>s</small></span>
+          <span className="sp-value">{Math.max(0, summary.avg_delay_sec)}<small>s</small></span>
         </div>
         <div className="speed-metric">
           <span className="sp-label">Updated</span>

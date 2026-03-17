@@ -51,7 +51,7 @@ export default function App() {
       <header className="app-header">
         <div className="app-brand">
           <h1>Traffic Movement</h1>
-          <h2>Sydney · Melbourne — live traffic intelligence</h2>
+          <h2>Victorian transport intelligence — traffic, speed, PT, fleet</h2>
         </div>
         <CitySelector city={city} onChange={handleCityChange} />
       </header>
@@ -154,9 +154,10 @@ export default function App() {
 
       <footer className="app-footer">
         <p>
-          Data: TfNSW (Sydney, 26 reliable stations) · VIC DTP SCATS (Melbourne, ~3,860 sites)
+          Data: VIC DTP — SCATS (~3,860 sites) · Bluetooth speed (4,711 links) · TIRTL (288 sites) · PT patronage · Vehicle registrations
+          {' · '}TfNSW (Sydney, 26 stations)
           {monitorData?.data_freshness &&
-            <> · Latest: NSW {monitorData.data_freshness.NSW}, VIC {monitorData.data_freshness.VIC}</>
+            <> · Latest: VIC {monitorData.data_freshness.VIC}</>
           }
         </p>
       </footer>
