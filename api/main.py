@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from api.db import get_connection
-from api.routes import traffic, stations, monitor, speed, transport
+from api.routes import traffic, stations, monitor, speed, transport, tirtl
 
 app = FastAPI(
     title="AMIP API",
@@ -36,6 +36,7 @@ app.include_router(stations.router, prefix="/api/stations", tags=["stations"])
 app.include_router(monitor.router, prefix="/api/monitor", tags=["monitor"])
 app.include_router(speed.router)
 app.include_router(transport.router)
+app.include_router(tirtl.router)
 
 
 @app.get("/api/health")

@@ -19,6 +19,8 @@ import SpeedPanel from './components/SpeedPanel/SpeedPanel';
 import PTPatronageChart from './components/PTPatronageChart/PTPatronageChart';
 import PTDayTypeChart from './components/PTDayTypeChart/PTDayTypeChart';
 import FleetBreakdown from './components/FleetBreakdown/FleetBreakdown';
+import VehicleMixChart from './components/VehicleMixChart/VehicleMixChart';
+import TIRTLSpeedChart from './components/TIRTLSpeedChart/TIRTLSpeedChart';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
 import './App.css';
@@ -98,12 +100,22 @@ export default function App() {
               <PTPatronageChart />
             </section>
             <section className="panel">
+              <h3 className="panel-title">Vehicle mix — cars vs trucks (TIRTL sensors, March 2026)</h3>
+              <VehicleMixChart />
+            </section>
+            <div className="panel-grid">
+              <section className="panel">
+                <h3 className="panel-title">Freeway speed profile — weekday vs weekend</h3>
+                <TIRTLSpeedChart />
+              </section>
+              <section className="panel">
+                <h3 className="panel-title">Vehicle fleet — fuel type</h3>
+                <FleetBreakdown />
+              </section>
+            </div>
+            <section className="panel">
               <h3 className="panel-title">Daily patronage by day type (2025 avg)</h3>
               <PTDayTypeChart />
-            </section>
-            <section className="panel">
-              <h3 className="panel-title">Vehicle fleet — fuel type breakdown</h3>
-              <FleetBreakdown />
             </section>
           </>
         )}
