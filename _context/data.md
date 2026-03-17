@@ -78,15 +78,33 @@ Never use a source in the product until it is marked **Confirmed ✅**.
 ## Assessed sources
 
 ### SRC-008 — VIC TIRTL Traffic Counts and Vehicle Classification
-**Provider:** DTP Victoria (released 9 March 2026)
-**Portal:** https://opendata.transport.vic.gov.au (newly listed)
-**Coverage:** Infra-Red Traffic Logger (TIRTL) devices across Victorian road network.
-**Signals:** Vehicle count, vehicle classification (Austroads), speed, direction, date/time, location
-**Format:** Downloadable (format TBC — needs inspection of actual files)
-**Licensing:** Likely CC-BY 4.0 (DTP standard) — needs confirmation
+**Provider:** DTP Victoria (released 12 March 2026)
+**Portal:** https://discover.data.vic.gov.au/dataset/tirtl-traffic-counts
+**Coverage:** 406 TIRTL sensor sites across Victorian road network (mostly freeways)
+**Signals:** Vehicle count, vehicle classification (Austroads 14 classes), speed (5 km/h bins), direction, date/time
+**Granularity:** 15-minute intervals, per site, per heading, per vehicle class, per speed bin
+**History:** March 2026 (first release). Update frequency unknown.
+**Format:** Monthly ZIP downloads containing daily CSV files
+**Licensing:** Creative Commons Attribution 4.0 ✅
+**Data quality:** High accuracy per DTP, but mis-classifications possible during high throughput. Devices may have outages.
 
-**Assessment:** Very promising — this is the first VIC dataset that combines counts AND speed in the same source. Just released, needs data inspection to confirm format, granularity, and historical depth. If it provides historical speed data in a downloadable format, it could replace or supplement the Bluetooth polling approach.
-**Status:** Assessed 🔍 — needs data inspection before confirming
+**V1 role:** Vehicle classification + historical speed data for Melbourne freeways. 3.09M aggregated rows loaded (1–13 March 2026). Enables car vs truck breakdown and speed distribution analysis.
+**Status:** Confirmed ✅
+
+---
+
+### SRC-012 — VIC Servo Saver Fuel Price API
+**Provider:** Service Victoria (Victorian Government)
+**Portal:** https://service.vic.gov.au/find-services/transport-and-driving/servo-saver
+**Coverage:** 1,200+ registered fuel stations across Victoria. All retailers legally required to report since August 2025.
+**Signals:** Real-time fuel price per litre by fuel type (Unleaded 91, Premium 95, Premium 98, Diesel, E10), station name, location, daily price cap
+**Granularity:** Per station, updated when retailer changes price (near real-time)
+**Format:** REST API (JSON). Requires application for API Consumer ID (free).
+**Licensing:** Open data, redistribution allowed with attribution to Service Victoria.
+**Auth:** Free application required — apply at https://discover.data.vic.gov.au/dataset/servo-saver-public-api
+
+**V1 role:** Correlate fuel price with traffic volume changes during the March 2026 fuel crisis. Enables price-vs-traffic overlays on the Monitor tab. Will need polling to build historical price archive (similar to Bluetooth approach).
+**Status:** Awaiting API key ⬜ — application submitted, pending approval
 
 ---
 

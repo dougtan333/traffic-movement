@@ -70,12 +70,11 @@ Full-stack local dashboard built and running. Data pipeline covers road traffic 
 
 ## Immediate next steps
 
-1. **Fresh SCATS data** — download latest March 2026 for first clean post-crisis week (w/c 16 Mar, no holidays)
-2. **PT day-type chart** — add weekday vs school-holiday vs weekend comparison to Transport tab
-3. **Speed trend chart** — will auto-populate as Bluetooth poller builds history
-4. **Bicycle data** — 69MB zip downloaded but not ingested (dataset discontinued at 2024, lower priority)
-5. **TIRTL dataset** — inspect when download becomes available (OPEN-006)
-6. **Deployment planning** — get it on a public URL (OPEN-004)
+1. **Servo Saver fuel price API** — awaiting API key. Once received: build polling script, DuckDB table, price-vs-traffic overlay on Monitor tab
+2. **Fresh SCATS data** — download latest March 2026 for first clean post-crisis week (w/c 16 Mar, no holidays)
+3. **Speed trend chart** — Bluetooth poller accumulating history, chart auto-renders
+4. **Deployment planning** — get it on a public URL (OPEN-004)
+5. **Bicycle data** — 69MB zip downloaded but not ingested (dataset discontinued at 2024, lower priority)
 
 ---
 

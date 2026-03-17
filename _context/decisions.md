@@ -171,10 +171,16 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ### OPEN-006 — TIRTL dataset viability
 **Question:** Does the newly released VIC TIRTL dataset provide historical speed + count data in a usable format?
-**Impact:** If yes, it could replace or supplement the Bluetooth polling approach for VIC speed data. Would give us historical speed data without needing to build a polling script.
-**Trigger:** Download and inspect the dataset when it becomes available
-**Current status:** Announced 9 March 2026 on VIC portal, but no download link found as of 15 March 2026.
-**Status:** Open ⬜
+**Resolution:** Yes. Downloaded and ingested 12 March 2026 release. 406 sites, 3.09M aggregated rows (1–13 March 2026), 15-min intervals with vehicle classification (Austroads 14 classes) and speed bins. Now integrated into the dashboard on the Transport tab.
+**Status:** Resolved ✅
+
+---
+
+### OPEN-007 — Servo Saver fuel price API access
+**Question:** Can we access the Victorian fuel price API to correlate prices with traffic patterns?
+**Impact:** Would enable price-vs-traffic overlays on the Monitor tab during the fuel crisis. Shows whether traffic drops correlate with price spikes.
+**Action:** Apply for API Consumer ID at https://discover.data.vic.gov.au/dataset/servo-saver-public-api (free). Build polling script + DuckDB table once key is received.
+**Status:** Open ⬜ — awaiting API key approval
 
 ---
 
