@@ -1,3 +1,14 @@
 .price-chain { width: 100%; }
 .price-chain-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
 .price-chain-note { font-size: 12px; color: var(--color-text-secondary); font-style: italic; }
+
+.price-chain-brent-bar {
+  display: flex; gap: 24px; align-items: center;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px;
+}
+.brent-current { display: flex; flex-direction: column; gap: 1px; }
+.brent-label { font-size: 10px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.brent-value { font-size: 18px; font-weight: 600; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.brent-unit { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+.brent-date .brent-value { font-size: 13px; font-weight: 400; }

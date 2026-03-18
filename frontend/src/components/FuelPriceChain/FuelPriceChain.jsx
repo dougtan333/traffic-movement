@@ -32,8 +32,35 @@ export default function FuelPriceChain() {
     retail: retailMap[w.date] || null,
   }));
 
+  // Latest Brent snapshot from API
+  const brent = data.latest_brent;
+
   return (
     <div className="price-chain">
+      {brent && brent.usd_bbl && (
+        <div className="price-chain-brent-bar">
+          <div className="brent-current">
+            <span className="brent-label">Brent crude</span>
+            <span className="brent-value">US${brent.usd_bbl.toFixed(2)}<span className="brent-unit">/bbl</span></span>
+          </div>
+          {brent.aud_cpl && (
+            <div className="brent-current">
+              <span className="brent-label">AUD equivalent</span>
+              <span className="brent-value">{brent.aud_cpl.toFixed(1)}<span className="brent-unit">c/l</span></span>
+            </div>
+          )}
+          {brent.aud_usd && (
+            <div className="brent-current">
+              <span className="brent-label">AUD/USD</span>
+              <span className="brent-value">{brent.aud_usd.toFixed(4)}</span>
+            </div>
+          )}
+          <div className="brent-current brent-date">
+            <span className="brent-label">As of</span>
+            <span className="brent-value">{new Date(brent.date + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          </div>
+        </div>
+      )}
       <div className="price-chain-header">
         <span className="price-chain-note">
           Brent crude → Melbourne wholesale (TGP) → VIC retail pump. ~10–14 day lag from international to pump.

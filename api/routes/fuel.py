@@ -144,14 +144,22 @@ def price_chain(months: int = Query(6, description="Months of history")):
     """
     con = get_connection()
 
-    # Wholesale + Brent (daily trading days)
+    # Wholesale + Brent (daily trading days) — include rows with either TGP or Brent
     wholesale = con.execute(f"""
         SELECT date, mel_ulp_tgp_cpl, brent_aud_cpl, brent_usd_bbl, aud_usd_rate
         FROM wholesale_prices
         WHERE date >= CURRENT_DATE - INTERVAL '{months} months'
-          AND mel_ulp_tgp_cpl IS NOT NULL
+          AND (mel_ulp_tgp_cpl IS NOT NULL OR brent_usd_bbl IS NOT NULL)
         ORDER BY date
     """).fetchall()
+
+    # Latest Brent price (may be more recent than TGP)
+    latest_brent = con.execute("""
+        SELECT date, brent_usd_bbl, aud_usd_rate, brent_aud_cpl
+        FROM wholesale_prices
+        WHERE brent_usd_bbl IS NOT NULL
+        ORDER BY date DESC LIMIT 1
+    """).fetchone()
 
     # Retail daily averages (from Servo Saver snapshots)
     retail = con.execute(f"""
@@ -183,7 +191,13 @@ def price_chain(months: int = Query(6, description="Months of history")):
             {"date": str(r[0]), "avg_u91_cpl": r[1], "stations": r[2]}
             for r in retail
         ],
-        "lag_note": "ACCC methodology: Singapore Mogas 95 (7-day rolling avg) lagged 10 days approximates retail. We use Brent crude lagged 10 days as a proxy (Mogas 95 is proprietary). TGP lagged 7 days tracks retail.",
+        "latest_brent": {
+            "date": str(latest_brent[0]) if latest_brent else None,
+            "usd_bbl": float(latest_brent[1]) if latest_brent else None,
+            "aud_usd": float(latest_brent[2]) if latest_brent and latest_brent[2] else None,
+            "aud_cpl": float(latest_brent[3]) if latest_brent and latest_brent[3] else None,
+        } if latest_brent else None,
+        "lag_note": "ACCC methodology: Singapore Mogas 95 (7-day rolling avg) lagged 10 days approximates retail. We use Brent crude as a proxy (Mogas 95 is proprietary). TGP lagged 7 days tracks retail.",
     }
 
 

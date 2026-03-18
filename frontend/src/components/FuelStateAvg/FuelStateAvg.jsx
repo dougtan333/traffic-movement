@@ -19,9 +19,11 @@ export default function FuelStateAvg() {
   if (error) return <div className="chart-error">Error: {error}</div>;
   if (!data?.data?.length) return null;
 
-  // Get latest date's data only
+  // Get latest date's data only, sorted cheapest to most expensive
   const latestDate = data.data[data.data.length - 1]?.date;
-  const latest = data.data.filter(d => d.date === latestDate && PRIMARY_TYPES.includes(d.fuel_type));
+  const latest = data.data
+    .filter(d => d.date === latestDate && PRIMARY_TYPES.includes(d.fuel_type))
+    .sort((a, b) => a.avg_price - b.avg_price);
 
   return (
     <div className="fuel-avg">
