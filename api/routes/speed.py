@@ -9,14 +9,16 @@ from ..db import get_connection
 router = APIRouter(prefix="/api/speed", tags=["speed"])
 
 
-def _link_filter(road: Optional[str], freeway_only: bool) -> str:
-    """Build a SQL WHERE clause fragment for link filtering."""
+def _link_filter(road: Optional[str], freeway_only: bool):
+    """Build a SQL WHERE clause fragment + params for link filtering."""
     clauses = ["so.speed_kmh > 0"]
+    params = []
     if road:
-        clauses.append(f"bl.road_name = '{road}'")
+        clauses.append("bl.road_name = ?")
+        params.append(road)
     if freeway_only:
         clauses.append("bl.is_freeway = true")
-    return " AND ".join(clauses)
+    return " AND ".join(clauses), params
 
 
 @router.get("/roads")
@@ -52,7 +54,7 @@ def speed_snapshot(
         con.close()
         return {"status": "no_data", "message": "No speed data yet"}
 
-    filt = _link_filter(road, freeways)
+    filt, filt_params = _link_filter(road, freeways)
     join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
 
     summary = con.execute(f"""
@@ -67,7 +69,7 @@ def speed_snapshot(
             count(*) FILTER (WHERE so.speed_kmh >= 40) as free_flow_links
         FROM speed_observations so {join}
         WHERE so.ts_interval = ? AND {filt}
-    """, [latest]).fetchone()
+    """, [latest] + filt_params).fetchone()
 
     slowest = con.execute(f"""
         SELECT so.route_id, bl.link_name, so.speed_kmh, so.travel_time_sec,
@@ -76,7 +78,7 @@ def speed_snapshot(
         WHERE so.ts_interval = ? AND {filt}
         ORDER BY so.speed_kmh ASC
         LIMIT 10
-    """, [latest]).fetchall()
+    """, [latest] + filt_params).fetchall()
     con.close()
 
     filter_label = road or ("Freeways" if freeways else "All links")
@@ -110,7 +112,7 @@ def speed_trend(
 ):
     """Speed trend over the last N hours — optionally filtered."""
     con = get_connection()
-    filt = _link_filter(road, freeways)
+    filt, filt_params = _link_filter(road, freeways)
     join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
 
     rows = con.execute(f"""
@@ -124,7 +126,7 @@ def speed_trend(
           AND {filt}
         GROUP BY so.ts_interval
         ORDER BY so.ts_interval
-    """).fetchall()
+    """, filt_params).fetchall()
     con.close()
 
     return {

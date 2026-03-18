@@ -20,20 +20,18 @@ export default function SpeedPanel({ city }) {
   const [trend, setTrend] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Only show for Melbourne
-  if (city !== 'melbourne') return null;
-
-  // Fetch road list once
+  // Fetch road list once (Melbourne only)
   useEffect(() => {
+    if (city !== 'melbourne') return;
     fetch(`${API_URL}/api/speed/roads`)
       .then(r => r.json())
       .then(d => setRoads(d.roads || []))
       .catch(() => {});
-  }, []);
+  }, [city]);
 
-  // Fetch snapshot + trend when filter changes
+  // Fetch snapshot + trend when filter or city changes
   useEffect(() => {
-    setLoading(true);
+    if (city !== 'melbourne') return;
     const params = filter === 'freeways' ? 'freeways=true'
       : filter !== 'all' ? `road=${encodeURIComponent(filter)}`
       : '';
@@ -45,7 +43,10 @@ export default function SpeedPanel({ city }) {
       setTrend(tr);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [filter]);
+  }, [filter, city]);
+
+  // Render nothing for non-Melbourne
+  if (city !== 'melbourne') return null;
 
   if (loading && !snapshot) return <div className="chart-loading">Loading speed data…</div>;
   if (!snapshot?.summary) return <div className="chart-loading">No speed data yet — poller may not be running</div>;

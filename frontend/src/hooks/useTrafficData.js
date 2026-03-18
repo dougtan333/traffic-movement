@@ -19,17 +19,14 @@ export function useTrafficData(endpoint, params = {}) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     fetch(url)
       .then(res => {
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         return res.json();
       })
-      .then(json => { if (!cancelled) setData(json); })
-      .catch(err => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .then(json => { if (!cancelled) { setData(json); setLoading(false); setError(null); } })
+      .catch(err => { if (!cancelled) { setError(err.message); setLoading(false); } });
 
     return () => { cancelled = true; };
   }, [url]);

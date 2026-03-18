@@ -74,9 +74,9 @@ def hourly_profile_multi(
             SELECT hour_of_day, avg(vehicle_count)::int as avg_count
             FROM hourly_counts h
             WHERE {filt} AND is_weekday = true
-              AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+              AND ts_hour >= ?::TIMESTAMP AND ts_hour < ?::TIMESTAMP
             GROUP BY hour_of_day ORDER BY hour_of_day
-        """).fetchall()
+        """, [f"{year}-01-01", f"{year + 1}-01-01"]).fetchall()
         result[str(year)] = [{"hour": r[0], "avg_count": r[1]} for r in rows]
     con.close()
     return {"city": city, "years": year_list, "data": result}
@@ -171,9 +171,9 @@ def day_of_week(
         FROM hourly_counts h
         WHERE {filt}
           AND hour_of_day BETWEEN 7 AND 18
-          AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+          AND ts_hour >= ?::TIMESTAMP AND ts_hour < ?::TIMESTAMP
         GROUP BY day_of_week ORDER BY day_of_week
-    """).fetchall()
+    """, [f"{year}-01-01", f"{year + 1}-01-01"]).fetchall()
     con.close()
     day_names = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
     data = [{"day_num": r[0], "day": day_names.get(r[0], "?"), "avg_count": r[1]} for r in rows]
@@ -218,23 +218,23 @@ def station_profile(
     Also returns station metadata (road name, suburb, coords).
     """
     con = get_connection()
-    meta = con.execute(f"""
+    meta = con.execute("""
         SELECT station_id, road_name, suburb, road_type, latitude, longitude
-        FROM stations WHERE station_id = '{station_id}'
-    """).fetchone()
+        FROM stations WHERE station_id = ?
+    """, [station_id]).fetchone()
     if not meta:
         con.close()
         return {"error": f"Station {station_id} not found"}
 
-    rows = con.execute(f"""
+    rows = con.execute("""
         SELECT hour_of_day, avg(vehicle_count)::int as avg_count,
                count(*) as sample_hours
         FROM hourly_counts
-        WHERE station_id = '{station_id}'
+        WHERE station_id = ?
           AND is_weekday = true
-          AND ts_hour >= '{year}-01-01' AND ts_hour < '{year + 1}-01-01'
+          AND ts_hour >= ?::TIMESTAMP AND ts_hour < ?::TIMESTAMP
         GROUP BY hour_of_day ORDER BY hour_of_day
-    """).fetchall()
+    """, [station_id, f"{year}-01-01", f"{year + 1}-01-01"]).fetchall()
     con.close()
 
     return {
@@ -258,14 +258,22 @@ def month_on_month(
     """
     con = get_connection()
     filt = _station_filter(city)
+    # Two-step aggregation: first get daily total per station, then monthly average
     rows = con.execute(f"""
-        SELECT date_trunc('month', CAST(ts_hour AS DATE))::DATE as month,
-               avg(vehicle_count)::int as avg_per_station,
+        WITH daily AS (
+            SELECT station_id,
+                   CAST(ts_hour AS DATE) as day,
+                   SUM(vehicle_count) as daily_total
+            FROM hourly_counts h
+            WHERE {filt}
+              AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+            GROUP BY 1, 2
+        )
+        SELECT date_trunc('month', day)::DATE as month,
+               (AVG(daily_total))::int as avg_per_station,
                count(DISTINCT station_id) as stations,
-               count(DISTINCT CAST(ts_hour AS DATE)) as days_reporting
-        FROM hourly_counts h
-        WHERE {filt}
-          AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+               count(DISTINCT day) as days_reporting
+        FROM daily
         GROUP BY 1
         ORDER BY 1
     """).fetchall()
@@ -308,16 +316,24 @@ def school_holiday_effect(
     hol_col = "c.is_school_holiday_nsw" if city == "sydney" else "c.is_school_holiday_vic"
 
     rows = con.execute(f"""
+        WITH daily AS (
+            SELECT h.station_id,
+                   CAST(h.ts_hour AS DATE) as day,
+                   {hol_col} as is_school_holiday,
+                   SUM(h.vehicle_count) as daily_total
+            FROM hourly_counts h
+            JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
+            WHERE {filt}
+              AND c.is_weekday = true
+              AND h.ts_hour >= CURRENT_DATE - INTERVAL '12 months'
+            GROUP BY 1, 2, 3
+        )
         SELECT
-            {hol_col} as is_school_holiday,
-            date_trunc('month', CAST(h.ts_hour AS DATE))::DATE as month,
-            avg(h.vehicle_count)::int as avg_per_station,
-            count(DISTINCT CAST(h.ts_hour AS DATE)) as days_reporting
-        FROM hourly_counts h
-        JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
-        WHERE {filt}
-          AND c.is_weekday = true
-          AND h.ts_hour >= CURRENT_DATE - INTERVAL '12 months'
+            is_school_holiday,
+            date_trunc('month', day)::DATE as month,
+            (AVG(daily_total))::int as avg_per_station,
+            count(DISTINCT day) as days_reporting
+        FROM daily
         GROUP BY 1, 2
         ORDER BY 2, 1
     """).fetchall()
