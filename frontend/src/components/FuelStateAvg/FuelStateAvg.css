@@ -1,0 +1,9 @@
+.fuel-avg { width: 100%; }
+.fuel-avg-date { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 12px; }
+.fuel-avg-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.fuel-avg-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; text-align: center; }
+.fuel-avg-type { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.fuel-avg-price { font-size: 24px; font-weight: 600; color: var(--color-text); line-height: 1.2; }
+.fuel-avg-unit { font-size: 13px; font-weight: 400; color: var(--color-text-secondary); }
+.fuel-avg-range { font-size: 11px; color: var(--color-text-secondary); margin-top: 4px; }
+.fuel-avg-stations { font-size: 10px; color: var(--color-text-secondary); opacity: 0.7; margin-top: 2px; }

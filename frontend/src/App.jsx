@@ -21,6 +21,10 @@ import PTDayTypeChart from './components/PTDayTypeChart/PTDayTypeChart';
 import FleetBreakdown from './components/FleetBreakdown/FleetBreakdown';
 import VehicleMixChart from './components/VehicleMixChart/VehicleMixChart';
 import TIRTLSpeedChart from './components/TIRTLSpeedChart/TIRTLSpeedChart';
+import FuelPriceChain from './components/FuelPriceChain/FuelPriceChain';
+import FuelTrafficOverlay from './components/FuelTrafficOverlay/FuelTrafficOverlay';
+import FuelByPostcode from './components/FuelByPostcode/FuelByPostcode';
+import FuelStateAvg from './components/FuelStateAvg/FuelStateAvg';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
 import './App.css';
@@ -28,6 +32,7 @@ import './App.css';
 const TABS = [
   { id: 'monitor', label: 'Monitor' },
   { id: 'patterns', label: 'Patterns' },
+  { id: 'fuel', label: 'Fuel' },
   { id: 'transport', label: 'Transport' },
   { id: 'explorer', label: 'Explorer' },
   { id: 'analysis', label: 'Analysis' },
@@ -51,7 +56,7 @@ export default function App() {
       <header className="app-header">
         <div className="app-brand">
           <h1>Traffic Movement</h1>
-          <h2>Victorian transport intelligence — traffic, speed, PT, fleet</h2>
+          <h2>Victorian transport intelligence — traffic, speed, fuel prices, PT, fleet</h2>
         </div>
         <CitySelector city={city} onChange={handleCityChange} />
       </header>
@@ -90,6 +95,27 @@ export default function App() {
                 <DayOfWeekChart city={city} />
               </section>
             </div>
+          </>
+        )}
+
+        {tab === 'fuel' && (
+          <>
+            <section className="panel">
+              <h3 className="panel-title">VIC fuel prices — state average</h3>
+              <FuelStateAvg />
+            </section>
+            <section className="panel">
+              <h3 className="panel-title">Oil to pump — price transmission chain</h3>
+              <FuelPriceChain />
+            </section>
+            <section className="panel">
+              <h3 className="panel-title">Traffic volume vs fuel price</h3>
+              <FuelTrafficOverlay />
+            </section>
+            <section className="panel">
+              <h3 className="panel-title">Find cheapest fuel by postcode</h3>
+              <FuelByPostcode />
+            </section>
           </>
         )}
 
@@ -155,6 +181,7 @@ export default function App() {
       <footer className="app-footer">
         <p>
           Data: VIC DTP — SCATS (~3,860 sites) · Bluetooth speed (4,711 links) · TIRTL (288 sites) · PT patronage · Vehicle registrations
+          {' · '}Service VIC Servo Saver (1,678 fuel stations) · AIP wholesale prices · EIA Brent crude
           {' · '}TfNSW (Sydney, 26 stations)
           {monitorData?.data_freshness &&
             <> · Latest: VIC {monitorData.data_freshness.VIC}</>

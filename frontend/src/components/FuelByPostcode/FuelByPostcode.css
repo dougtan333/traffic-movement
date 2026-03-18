@@ -1,0 +1,15 @@
+.fuel-postcode { width: 100%; }
+.fuel-postcode-controls { display: flex; gap: 16px; margin-bottom: 16px; }
+.fuel-postcode-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--color-text-secondary); }
+.fuel-postcode-controls select { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 13px; min-width: 200px; }
+.fuel-postcode-summary { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+.fuel-cheapest { font-weight: 600; color: #10b981; font-size: 20px; }
+.fuel-dash { color: var(--color-text-secondary); }
+.fuel-expensive { font-weight: 600; color: #E24B4A; font-size: 20px; }
+.fuel-count { color: var(--color-text-secondary); font-size: 12px; margin-left: auto; }
+.fuel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fuel-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--color-border); font-weight: 500; color: var(--color-text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.fuel-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); }
+.fuel-price-col { text-align: right; font-variant-numeric: tabular-nums; }
+.fuel-cheapest-row td { background: rgba(16, 185, 129, 0.08); }
+.fuel-postcode-empty { color: var(--color-text-secondary); font-size: 13px; padding: 20px 0; text-align: center; }

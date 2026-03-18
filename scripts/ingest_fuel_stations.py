@@ -62,20 +62,31 @@ def api_get(endpoint, consumer_id):
 
 
 def parse_postcode(address):
-    """Extract 4-digit postcode from an Australian address string."""
+    """Extract 4-digit postcode from an Australian address string.
+    Formats seen: '276 Clyde Road, BERWICK, 3806' or '123 Main St, Melbourne VIC 3000'
+    """
     if not address:
         return None
-    m = re.search(r"\b(\d{4})\b(?:\s+VIC|\s*$)", address)
+    m = re.search(r"\b(\d{4})\s*$", address.strip())
     return m.group(1) if m else None
 
 
 def parse_suburb(address):
-    """Extract suburb from address like '123 Main St, Footscray VIC 3011'."""
+    """Extract suburb from address. Handles:
+    - '276 Clyde Road, BERWICK, 3806'  (most common — suburb before postcode)
+    - '123 Main St, Melbourne VIC 3000'
+    """
     if not address:
         return None
-    # Try to match: stuff, SUBURB VIC POSTCODE
-    m = re.search(r",\s*([A-Za-z\s-]+?)\s+VIC\s+\d{4}", address)
-    return m.group(1).strip() if m else None
+    # Try format: stuff, SUBURB, POSTCODE
+    m = re.search(r",\s*([A-Za-z\s-]+?)\s*,?\s*\d{4}\s*$", address.strip())
+    if m:
+        suburb = m.group(1).strip()
+        # Remove "VIC" if present
+        suburb = re.sub(r"\s*VIC\s*$", "", suburb, flags=re.IGNORECASE).strip()
+        if suburb:
+            return suburb.title()
+    return None
 
 
 def load_brands(consumer_id):
