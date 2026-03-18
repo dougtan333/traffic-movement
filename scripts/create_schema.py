@@ -9,6 +9,9 @@ Tables:
   - speed_observations:  Speed & travel time per route interval (VIC only for V1)
   - calendar:            Date dimension with holidays, school terms, events
   - data_modules:        Manifest of active data sources (per PROJECT_REFERENCE)
+  - fuel_stations:       VIC fuel station reference (Servo Saver API)
+  - fuel_prices:         Daily retail fuel price snapshots per station (Servo Saver API)
+  - wholesale_prices:    Daily wholesale TGP + international benchmarks (AIP + EIA)
 
 Designed to match the schema in amip_data_audit.md exactly.
 
@@ -139,6 +142,63 @@ def create_schema(con: duckdb.DuckDBPyConnection) -> None:
             date_range_start DATE,
             date_range_end   DATE,
             notes           VARCHAR
+        );
+    """)
+
+    # ── fuel_stations: VIC fuel station reference (Servo Saver) ───────
+    # Loaded from Servo Saver /fuel/reference-data/stations + /brands.
+    # One row per registered fuel station in Victoria.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS fuel_stations (
+            station_id      VARCHAR PRIMARY KEY,     -- Servo Saver fuelStation.id
+            name            VARCHAR     NOT NULL,
+            brand_id        VARCHAR,
+            brand_name      VARCHAR,                 -- denormalised from brands endpoint
+            brand_type      VARCHAR,                 -- major | independent
+            address         VARCHAR,
+            postcode        VARCHAR,                 -- parsed from address
+            suburb          VARCHAR,                 -- parsed from address
+            latitude        DOUBLE,
+            longitude       DOUBLE,
+            contact_phone   VARCHAR,
+            updated_at      TIMESTAMP                -- last metadata update from API
+        );
+    """)
+
+    # ── fuel_prices: daily retail price snapshots (Servo Saver) ───────
+    # One row per station × fuel type × snapshot date.
+    # Built by daily polling of /fuel/prices endpoint.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS fuel_prices (
+            station_id      VARCHAR     NOT NULL,    -- FK to fuel_stations
+            snapshot_date   DATE        NOT NULL,    -- date we polled
+            fuel_type       VARCHAR     NOT NULL,    -- U91 | P95 | P98 | DSL | PDSL | E10 | E85 | B20 | LPG | LNG | CNG
+            price_cpl       DECIMAL(5,1),            -- cents per litre (e.g. 188.8)
+            is_available    BOOLEAN,
+            retailer_updated_at TIMESTAMP,           -- when the retailer last changed this price
+
+            PRIMARY KEY (station_id, snapshot_date, fuel_type)
+        );
+    """)
+
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fp_date     ON fuel_prices (snapshot_date);")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fp_type     ON fuel_prices (fuel_type, snapshot_date);")
+
+    # ── wholesale_prices: daily TGP + international benchmarks ────────
+    # Seeded from AIP TGP Excel (years of history), then kept current
+    # by scraping api.aip.com.au/public/tgpTables (rolling 5-day table).
+    # Brent crude added via EIA API + RBA AUD/USD exchange rate.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS wholesale_prices (
+            date            DATE PRIMARY KEY,
+            mel_ulp_tgp_cpl     DECIMAL(5,1),        -- Melbourne ULP Terminal Gate Price (c/l inc GST)
+            mel_diesel_tgp_cpl  DECIMAL(5,1),        -- Melbourne Diesel TGP
+            syd_ulp_tgp_cpl     DECIMAL(5,1),        -- Sydney ULP TGP (for reference)
+            national_ulp_tgp_cpl DECIMAL(5,1),       -- National average ULP TGP
+            national_diesel_tgp_cpl DECIMAL(5,1),    -- National average Diesel TGP
+            brent_usd_bbl       DECIMAL(6,2),        -- Brent crude USD per barrel (EIA)
+            aud_usd_rate        DECIMAL(6,4),        -- AUD/USD exchange rate (RBA)
+            brent_aud_cpl       DECIMAL(5,1)         -- Brent converted to AUD cents/litre
         );
     """)
 

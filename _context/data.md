@@ -96,19 +96,72 @@ Never use a source in the product until it is marked **Confirmed ✅**.
 ### SRC-012 — VIC Servo Saver Fuel Price API
 **Provider:** Service Victoria (Victorian Government)
 **Portal:** https://service.vic.gov.au/find-services/transport-and-driving/servo-saver
-**Coverage:** 1,200+ registered fuel stations across Victoria. All retailers legally required to report since August 2025.
-**Signals:** Real-time fuel price per litre by fuel type (Unleaded 91, Premium 95, Premium 98, Diesel, E10), station name, location, daily price cap
-**Granularity:** Per station, updated when retailer changes price (near real-time)
-**Format:** REST API (JSON). Requires application for API Consumer ID (free).
+**API Base:** https://api.fuel.service.vic.gov.au/open-data/v1
+**Coverage:** 1,678 registered fuel stations across Victoria. All retailers legally required to report since August 2025.
+**Signals:** Fuel price per litre by type (U91, P95, P98, DSL, PDSL, E10, E85, B20, LPG, LNG, CNG), station metadata (name, brand, address, lat/lon)
+**Granularity:** Per station, 24-hour delayed from retailer submission
+**Format:** REST API (JSON). Requires API Consumer ID (free application).
 **Licensing:** Open data, redistribution allowed with attribution to Service Victoria.
-**Auth:** Free application required — apply at https://discover.data.vic.gov.au/dataset/servo-saver-public-api
+**Auth:** Consumer ID in `x-consumer-id` header. Rate limit: 10 requests per 60 seconds.
+**Endpoints:** `/fuel/prices` (all prices), `/fuel/reference-data/stations`, `/fuel/reference-data/brands`, `/fuel/reference-data/types`
 
-**V1 role:** Correlate fuel price with traffic volume changes during the March 2026 fuel crisis. Enables price-vs-traffic overlays on the Monitor tab. Will need polling to build historical price archive (similar to Bluetooth approach).
-**Status:** Awaiting API key ⬜ — application submitted, pending approval
+**V1 role:** Daily retail fuel price snapshots. Correlates with traffic volume during fuel crisis. Enables price heatmap, cheapest/most expensive by postcode, state average trends.
+**DuckDB tables:** `fuel_stations` (1,678 rows), `fuel_prices` (daily snapshots, ~7K rows/day)
+**Scripts:** `ingest_fuel_stations.py` (one-off + refresh), `poll_fuel_prices.py` (daily)
+**Status:** Confirmed ✅ — integrated 18 March 2026
 
 ---
 
 ### SRC-009 — NSW Toll Road Data (Transurban)
+
+---
+
+### SRC-013 — AIP Terminal Gate Prices (Wholesale)
+**Provider:** Australian Institute of Petroleum (AIP)
+**Portal:** https://www.aip.com.au/pricing/terminal-gate-prices
+**Coverage:** Daily wholesale TGP for ULP and Diesel across Sydney, Melbourne, Brisbane, Adelaide, Perth, Darwin, Hobart + National Average.
+**Signals:** Terminal Gate Price in cents per litre (inclusive of GST) — the wholesale benchmark.
+**Granularity:** Daily (weekdays only — trading days)
+**History:** January 2004 to present (22+ years, 5,792 trading days)
+**Format:** Excel download (historical, updated ~weekly) + HTML table (latest 5 days, scrapeable)
+**Licensing:** Published by AIP for public transparency. Data sourced from BP, Ampol, Viva Energy, ExxonMobil.
+**Auth:** None required for download.
+
+**V1 role:** Historical wholesale price layer for the oil-to-pump price chain. Shows TGP trend over time, lagged 7 days against retail to demonstrate transmission delay. Seeded from Excel, kept current by scraping HTML table.
+**DuckDB table:** `wholesale_prices` (5,795 rows — TGP + Brent + AUD/USD combined)
+**Scripts:** `ingest_wholesale_prices.py --seed` (one-time Excel), `ingest_wholesale_prices.py --refresh` (scrape latest)
+**Status:** Confirmed ✅ — integrated 18 March 2026
+
+---
+
+### SRC-014 — EIA Brent Crude Oil Spot Price
+**Provider:** U.S. Energy Information Administration (EIA)
+**API:** https://api.eia.gov/v2/petroleum/pri/spt/data/ (series RBRTE)
+**Coverage:** Daily Brent crude spot price (USD per barrel), global benchmark.
+**History:** May 1987 to present (5,624 daily prices from 2004 in our DB)
+**Format:** REST API (JSON). Free API key required.
+**Licensing:** US government public domain data.
+**Auth:** Free API key from https://www.eia.gov/opendata/register.php
+
+**V1 role:** International crude oil benchmark for the price chain. Combined with RBA AUD/USD exchange rate to convert to AUD cents per litre. Shows how crude price shocks (e.g. Strait of Hormuz) transmit to Australian pump prices with ~10–14 day lag.
+**DuckDB table:** Stored in `wholesale_prices.brent_usd_bbl`, `.aud_usd_rate`, `.brent_aud_cpl`
+**Scripts:** `refresh_brent.py` (fetches EIA + RBA data, updates wholesale_prices)
+**Status:** Confirmed ✅ — integrated 18 March 2026
+
+---
+
+### SRC-015 — RBA AUD/USD Exchange Rate
+**Provider:** Reserve Bank of Australia
+**URL:** https://www.rba.gov.au/statistics/tables/csv/f11.1-data.csv
+**Coverage:** Daily AUD/USD exchange rate (USD per 1 AUD).
+**History:** ~3 years in the CSV download (806 trading days from Jan 2023)
+**Format:** CSV download, no auth required.
+**Licensing:** RBA public data.
+
+**V1 role:** Currency conversion for Brent crude (USD) to AUD cents per litre. Essential for the international benchmark comparison.
+**DuckDB table:** Stored in `wholesale_prices.aud_usd_rate`
+**Scripts:** Part of `refresh_brent.py`
+**Status:** Confirmed ✅ — integrated 18 March 2026
 **Provider:** Transurban (via ACCC undertaking)
 **Portal:** https://nswtollroaddata.com
 **Coverage:** Sydney toll roads (M2, M4, M5, M7, Lane Cove, Cross City, Harbour Bridge/Tunnel, etc.)
@@ -209,16 +262,26 @@ Key fields: date, day_of_week, is_weekday, week_number, month, year, is_public_h
 - Historical snapshots retained — never overwrite, always append or version
 - Bluetooth speed data: polling script needed to build historical archive (Phase 2)
 
-### Current database state (as of 15 March 2026)
+### Current database state (as of 18 March 2026)
 
 | Table | Rows | Coverage |
 |---|---|---|
 | stations | 4,259 | 295 Sydney permanent + 3,964 Melbourne SCATS-matched |
-| hourly_counts | 94,470,415 | NSW: 21.1M (2006–Feb 2026, 295 stations) / VIC: 73.4M (Jan 2024–Mar 2026, 27 months, ~3,860 stations) |
+| hourly_counts | 94,470,415 | NSW: 21.1M (2006–Feb 2026) / VIC: 73.4M (Jan 2024–Mar 2026) |
+| tirtl_counts | 3,090,000 | VIC: 406 sites (1–13 March 2026) |
+| tirtl_sites | 406 | VIC TIRTL sensor locations |
+| speed_observations | growing | VIC Bluetooth polling (5-min intervals) |
+| bluetooth_routes | 261 | VIC freeway/arterial routes |
+| bluetooth_links | 4,711 | VIC Bluetooth receiver links |
+| pt_patronage_monthly | 95 | VIC: Jan 2018–Nov 2025, 6 modes |
+| pt_patronage_daytype | 4,300 | VIC: weekday/school-hol/weekend × mode |
+| vehicle_registrations | 6 | VIC: Q4 2025, by fuel type |
+| fuel_stations | 1,678 | VIC: all registered stations, 67 brands, 458 postcodes |
+| fuel_prices | ~7,114/day | VIC: daily retail snapshots from Servo Saver (from 18 Mar 2026) |
+| wholesale_prices | 5,795 | Daily TGP 2004–today + Brent crude + AUD/USD |
 | calendar | 2,557 | 2020–2026 with holidays, school terms, events |
-| speed_observations | 0 | Awaiting Bluetooth polling script |
-| bluetooth_routes | 0 | Awaiting Bluetooth polling script |
-| DB file size | 6.9 GB | |
+| data_modules | — | Manifest |
+| DB file size | ~7.0 GB | |
 
 ### Ingestion scripts
 
@@ -229,8 +292,16 @@ Key fields: date, day_of_week, is_weekday, week_number, month, year, is_public_h
 | ingest_vic_stations.py | Traffic Lights CSV | stations | CRS reprojection EPSG:3111→4326 |
 | ingest_nsw_counts.py | hourly permanent CSVs | hourly_counts | Unpivots 24 hour columns |
 | ingest_vic_counts.py | SCATS monthly CSVs | hourly_counts | Aggregates 15-min→hourly, sums detectors |
+| ingest_tirtl.py | TIRTL monthly CSVs | tirtl_counts, tirtl_sites | Speed bins + vehicle classification |
+| ingest_vic_transport.py | PT patronage + fleet CSVs | pt_patronage_*, vehicle_registrations | DTP open data |
 | populate_calendar.py | Hardcoded dates | calendar | Holidays, school terms, events |
+| poll_bluetooth.py | VIC Bluetooth API | speed_observations, bluetooth_* | --loop for continuous, single for one-off |
+| ingest_fuel_stations.py | Servo Saver API | fuel_stations | Station + brand reference, run periodically |
+| poll_fuel_prices.py | Servo Saver API | fuel_prices | Daily retail price snapshot, --loop for 24h cycle |
+| ingest_wholesale_prices.py | AIP Excel + HTML scrape | wholesale_prices | --seed for Excel, --refresh for scrape |
+| refresh_brent.py | EIA API + RBA CSV | wholesale_prices | Brent USD/bbl + AUD/USD rate + AUD c/l conversion |
 | weekly_refresh.py | hourly_counts (query) | stdout + JSON report | Fuel crisis tracker — weekly baseline comparison |
+| inspect_data.py | all tables (query) | stdout | One-off data inspection report |
 
 ### Monitoring tools
 

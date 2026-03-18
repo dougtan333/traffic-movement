@@ -4,7 +4,7 @@
 ---
 
 ## Last updated
-16 March 2026 — 5-tab dashboard with traffic counts, speed, PT patronage, fleet data. Bluetooth poller running. VIC-only focus confirmed.
+18 March 2026 — Fuel price pipeline complete. 3 new tables, 4 new scripts. Servo Saver retail + AIP wholesale + EIA Brent all integrated. Dashboard fuel tab next.
 
 ---
 
@@ -138,3 +138,16 @@
 ---
 
 *Update this file at the end of every session.*
+
+
+**18 March 2026 — Fuel price data pipeline**
+- Researched Australian fuel price data sources: Servo Saver (VIC retail), AIP TGP (wholesale), EIA (Brent crude), RBA (AUD/USD)
+- Documented oil-to-pump lag: ~10–14 days (ACCC methodology: Singapore Mogas 95 7-day rolling avg lagged 10 days)
+- Downloaded and inspected AIP TGP Excel: 5,792 trading days (2004–Mar 2026), Petrol + Diesel sheets, 7 cities + national avg
+- Confirmed AIP Excel does NOT contain Mogas 95 or Brent — those come from EIA API
+- Built 4 new scripts: ingest_wholesale_prices.py, ingest_fuel_stations.py, poll_fuel_prices.py, refresh_brent.py
+- Created 3 new DuckDB tables: fuel_stations (1,678), fuel_prices (7,114 first snapshot), wholesale_prices (5,795)
+- Fixed AIP HTML table parser (th/td structure issue in city column)
+- First retail snapshot captured: VIC avg ULP 240.0 c/l, range 189.9–9999.9 (sentinel values)
+- Crisis data visible: Melbourne wholesale 152→231 c/l (+52%), Brent $73→$96 (+31%) in 4 weeks
+- Updated all context files, added DEC-017 (fuel data architecture), DEC-018 (9999.9 sentinel handling)

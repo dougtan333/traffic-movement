@@ -178,9 +178,27 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ### OPEN-007 — Servo Saver fuel price API access
 **Question:** Can we access the Victorian fuel price API to correlate prices with traffic patterns?
-**Impact:** Would enable price-vs-traffic overlays on the Monitor tab during the fuel crisis. Shows whether traffic drops correlate with price spikes.
-**Action:** Apply for API Consumer ID at https://discover.data.vic.gov.au/dataset/servo-saver-public-api (free). Build polling script + DuckDB table once key is received.
-**Status:** Open ⬜ — awaiting API key approval
+**Resolution:** Yes. API access approved. Full integration completed 18 March 2026. Three fuel data sources integrated: Servo Saver (retail), AIP TGP (wholesale), EIA+RBA (Brent crude + AUD/USD).
+**Status:** Resolved ✅
+
+---
+
+### DEC-017 — Fuel price data: three-layer architecture
+**Decision:** Fuel price data uses three sources forming the oil-to-pump price chain: (1) EIA API for daily Brent crude spot price (USD/barrel), (2) AIP TGP for daily Melbourne wholesale price (cents/litre), (3) Servo Saver API for daily VIC retail station-level prices. RBA provides AUD/USD exchange rate for Brent conversion.
+**Rationale:** The ACCC methodology shows a ~10–14 day lag from international benchmark to Australian pump. Showing all three layers lets users see price shocks coming before they hit the pump. Each source is free and automatable: EIA via REST API, AIP via Excel seed + HTML scrape, Servo Saver via REST API with daily polling.
+**Lag model (ACCC standard):** Singapore Mogas 95 lagged 10 days = approximate retail price. We approximate using Brent crude (available free) since Mogas 95 is proprietary (Argus/Platts). AIP TGP lagged 7 days tracks retail closely.
+**Ruled out:** FuelPrice.io (commercial, terms may limit use), GlobalPetrolPrices (CC-NC-ND, weekly only), direct Mogas 95 data (proprietary, no free API).
+**DuckDB tables:** `fuel_stations` (1,678 rows), `fuel_prices` (daily snapshots), `wholesale_prices` (5,795 rows — TGP + Brent + AUD/USD).
+**Scripts:** `ingest_fuel_stations.py`, `poll_fuel_prices.py`, `ingest_wholesale_prices.py`, `refresh_brent.py`.
+**Status:** Confirmed ✅
+
+---
+
+### DEC-018 — Servo Saver 9999.9 sentinel price handling
+**Decision:** Fuel prices of 9999.9 c/l are treated as sentinel/placeholder values and filtered out of all aggregations and display. Stations reporting 9999.9 are included in station counts but excluded from price calculations.
+**Rationale:** First API poll (18 March 2026) showed several stations with 9999.9 c/l — clearly not a real price. Likely means "not yet set" or "system default". Including them would skew averages.
+**Filter:** `WHERE price_cpl > 0 AND price_cpl < 500` in all price queries.
+**Status:** Confirmed ✅
 
 ---
 
