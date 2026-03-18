@@ -48,15 +48,17 @@ Full-stack local dashboard built and running. Data pipeline covers road traffic 
 - [x] Wholesale prices: 5,795 trading days from 2004 (AIP TGP Excel + HTML scrape)
 - [x] Brent crude: 5,624 daily prices (EIA API) + 806 AUD/USD rates (RBA CSV)
 
-### API (FastAPI, 14 endpoints)
+### API (FastAPI, 20 endpoints)
 - [x] Traffic: hourly-profile, hourly-profile-multi, weekly-trend, daily-counts, day-of-week, heatmap, station-profile, month-on-month, school-holiday-effect
 - [x] Speed: snapshot, trend
 - [x] Transport: pt-monthly, pt-daytype, fleet
+- [x] Fuel: state-average, by-postcode, postcodes, heatmap, price-chain, traffic-overlay
 - [x] Stations, monitor, health
 
-### Frontend (React + Vite + Recharts, 5 tabs, 12 components)
+### Frontend (React + Vite + Recharts, 6 tabs, 16 components)
 - [x] **Monitor tab:** Metric cards, weekly trend, daily bars, speed panel (Melbourne only)
 - [x] **Patterns tab:** Hour × day-of-week heatmap, hourly profile (multi-year), day-of-week bars
+- [x] **Fuel tab:** State average cards (sorted cheapest→expensive), oil-to-pump price chain (Brent + TGP + retail), traffic vs fuel overlay (dual axis), cheapest fuel by postcode (dropdown + table)
 - [x] **Transport tab:** PT patronage stacked area chart, vehicle fleet fuel-type breakdown
 - [x] **Explorer tab:** Leaflet station map (~3,860 MEL / 26 SYD), click-to-profile drilldown
 - [x] **Analysis tab:** Month-on-month comparison table, school holiday effect
