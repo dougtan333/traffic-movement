@@ -46,6 +46,13 @@ export default function FuelByPostcode() {
             <span className="fuel-dash">→</span>
             <span className="fuel-expensive">{data.stations[data.stations.length - 1].price_cpl}c</span>
             <span className="fuel-count">{data.stations.length} stations in {postcode}</span>
+            {data.date && (
+              <span className="fuel-date">
+                {new Date(data.date + 'T00:00:00').toLocaleDateString('en-AU', {
+                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+                })}
+              </span>
+            )}
           </div>
 
           <table className="fuel-table">

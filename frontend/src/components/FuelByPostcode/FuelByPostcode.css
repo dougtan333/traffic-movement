@@ -7,6 +7,7 @@
 .fuel-dash { color: var(--color-text-secondary); }
 .fuel-expensive { font-weight: 600; color: #E24B4A; font-size: 20px; }
 .fuel-count { color: var(--color-text-secondary); font-size: 12px; margin-left: auto; }
+.fuel-date { color: var(--color-text-secondary); font-size: 12px; }
 .fuel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .fuel-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--color-border); font-weight: 500; color: var(--color-text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
 .fuel-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); }
