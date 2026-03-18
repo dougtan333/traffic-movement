@@ -4,9 +4,8 @@
  */
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-/** City colour scheme — matches AMIP prompt spec */
+/** City colour scheme */
 export const CITY_COLORS = {
-  sydney: '#1B3A5C',
   melbourne: '#2A9D8F',
 };
 

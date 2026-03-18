@@ -1,8 +1,6 @@
 /**
  * HourlyProfileChart — weekday hourly profile with year overlays.
- * Shows how the commuter curve has changed across years.
- *
- * @param {{ city: string }} props
+ * Shows how the commuter curve has changed across years. Victoria only.
  */
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -17,10 +15,9 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => {
   return `${h}${i < 12 ? 'am' : 'pm'}`;
 });
 
-export default function HourlyProfileChart({ city }) {
-  const years = city === 'sydney' ? '2019,2020,2021,2024,2025' : '2024,2025';
+export default function HourlyProfileChart() {
   const { data, loading, error } = useTrafficData('/api/traffic/hourly-profile-multi', {
-    city, years,
+    years: '2024,2025,2026',
   });
 
   if (loading) return <div className="chart-loading">Loading hourly profile…</div>;

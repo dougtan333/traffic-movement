@@ -1,8 +1,6 @@
 /**
  * DailyCountsChart — daily traffic bar chart with weekday/weekend colouring.
- * Highlights post-crisis days in red tones.
- *
- * @param {{ city: string, dateFrom: string, dateTo: string }} props
+ * Highlights post-crisis days in red tones. Victoria only.
  */
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -12,9 +10,9 @@ import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
 import './DailyCountsChart.css';
 
-export default function DailyCountsChart({ city, dateFrom = '2026-02-01', dateTo = '2026-03-31' }) {
+export default function DailyCountsChart({ dateFrom = '2026-02-01', dateTo = '2026-03-31' }) {
   const { data, loading, error } = useTrafficData('/api/traffic/daily-counts', {
-    city, date_from: dateFrom, date_to: dateTo,
+    date_from: dateFrom, date_to: dateTo,
   });
 
   if (loading) return <div className="chart-loading">Loading daily counts…</div>;
@@ -27,7 +25,7 @@ export default function DailyCountsChart({ city, dateFrom = '2026-02-01', dateTo
     isCrisis: d.day >= CRISIS_DATE,
   }));
 
-  const cityColor = CITY_COLORS[city];
+  const cityColor = CITY_COLORS.melbourne;
 
   const getBarColor = (entry) => {
     if (entry.isCrisis) {

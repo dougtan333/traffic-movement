@@ -2,7 +2,7 @@
  * SchoolHolidayChart — paired bar chart comparing school holiday
  * vs term-time traffic, with summary metric card.
  *
- * @param {{ city: string }} props
+ * Victoria only.
  */
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -12,8 +12,8 @@ import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS } from '../../constants';
 import './SchoolHolidayChart.css';
 
-export default function SchoolHolidayChart({ city }) {
-  const { data, loading, error } = useTrafficData('/api/traffic/school-holiday-effect', { city });
+export default function SchoolHolidayChart() {
+  const { data, loading, error } = useTrafficData('/api/traffic/school-holiday-effect');
 
   if (loading) return <div className="chart-loading">Loading…</div>;
   if (error) return <div className="chart-error">Error: {error}</div>;

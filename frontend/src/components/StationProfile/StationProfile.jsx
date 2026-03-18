@@ -27,8 +27,7 @@ export default function StationProfile({ stationId, onClose }) {
   if (!data?.hourly?.length) return null;
 
   const { station, hourly } = data;
-  const city = station.id.startsWith('VIC') ? 'melbourne' : 'sydney';
-  const color = CITY_COLORS[city];
+  const color = CITY_COLORS.melbourne;
   const peak = Math.max(...hourly.map(h => h.avg_count));
   const peakHour = hourly.find(h => h.avg_count === peak);
 

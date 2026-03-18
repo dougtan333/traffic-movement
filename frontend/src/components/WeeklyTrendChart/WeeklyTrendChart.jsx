@@ -1,8 +1,7 @@
 /**
  * WeeklyTrendChart — weekday average vehicles per station, weekly.
  * Annotates: fuel crisis onset, school holiday periods, major events.
- *
- * @param {{ city: string }} props
+ * Victoria only.
  */
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
@@ -13,11 +12,11 @@ import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
 import './WeeklyTrendChart.css';
 
-export default function WeeklyTrendChart({ city }) {
+export default function WeeklyTrendChart() {
   const { data, loading, error } = useTrafficData('/api/traffic/weekly-trend', {
-    city, weeks: 52,
+    weeks: 52,
   });
-  const { events: calData } = useCalendarEvents(city);
+  const { events: calData } = useCalendarEvents();
 
   if (loading) return <div className="chart-loading">Loading weekly trend…</div>;
   if (error) return <div className="chart-error">Error: {error}</div>;
@@ -43,7 +42,7 @@ export default function WeeklyTrendChart({ city }) {
   return (
     <div className="chart-container">
       <div className="chart-legend">
-        <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS[city] }} />Weekly avg</span>
+        <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne }} />Weekly avg</span>
         <span className="legend-item"><span className="legend-swatch school-swatch" />School holidays</span>
         <span className="legend-item"><span className="legend-line crisis-line" />Iran conflict</span>
       </div>
@@ -88,7 +87,7 @@ export default function WeeklyTrendChart({ city }) {
           <Line
             type="monotone"
             dataKey="avg_per_station"
-            stroke={CITY_COLORS[city]}
+            stroke={CITY_COLORS.melbourne}
             strokeWidth={2}
             dot={false}
             activeDot={{ r: 4 }}

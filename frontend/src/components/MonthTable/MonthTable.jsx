@@ -2,13 +2,13 @@
  * MonthTable — tabular month-on-month comparison with YoY % change.
  * Shows the last 12 months with directional indicators.
  *
- * @param {{ city: string }} props
+ * Victoria only.
  */
 import { useTrafficData } from '../../hooks/useTrafficData';
 import './MonthTable.css';
 
-export default function MonthTable({ city }) {
-  const { data, loading, error } = useTrafficData('/api/traffic/month-on-month', { city });
+export default function MonthTable() {
+  const { data, loading, error } = useTrafficData('/api/traffic/month-on-month');
 
   if (loading) return <div className="chart-loading">Loading…</div>;
   if (error) return <div className="chart-error">Error: {error}</div>;

@@ -1,9 +1,8 @@
 /**
  * App — main layout for the AMIP dashboard.
- * Manages city selection, tab navigation, and renders chart panels.
+ * Victoria-only. Tab navigation and chart panels.
  */
 import { useState } from 'react';
-import CitySelector from './components/CitySelector/CitySelector';
 import TabNav from './components/TabNav/TabNav';
 import MetricCards from './components/MetricCards/MetricCards';
 import WeeklyTrendChart from './components/WeeklyTrendChart/WeeklyTrendChart';
@@ -39,17 +38,9 @@ const TABS = [
 ];
 
 export default function App() {
-  const [city, setCity] = useState('melbourne');
   const [tab, setTab] = useState('monitor');
   const [selectedStation, setSelectedStation] = useState(null);
   const { data: monitorData } = useTrafficData('/api/monitor/');
-
-  const cityMonitor = monitorData?.[city];
-
-  const handleCityChange = (newCity) => {
-    setCity(newCity);
-    setSelectedStation(null);
-  };
 
   return (
     <div className="app">
@@ -58,7 +49,6 @@ export default function App() {
           <h1>Traffic Movement</h1>
           <h2>Victorian transport intelligence — traffic, speed, fuel prices, PT, fleet</h2>
         </div>
-        <CitySelector city={city} onChange={handleCityChange} />
       </header>
 
       <TabNav tabs={TABS} active={tab} onChange={setTab} />
@@ -68,14 +58,14 @@ export default function App() {
           <>
             <section className="panel">
               <h3 className="panel-title">Fuel crisis tracker</h3>
-              <MetricCards data={cityMonitor} />
-              <WeeklyTrendChart city={city} />
+              <MetricCards data={monitorData} />
+              <WeeklyTrendChart />
             </section>
             <section className="panel">
               <h3 className="panel-title">Daily traffic</h3>
-              <DailyCountsChart city={city} />
+              <DailyCountsChart />
             </section>
-            <SpeedPanel city={city} />
+            <SpeedPanel />
           </>
         )}
 
@@ -83,16 +73,16 @@ export default function App() {
           <>
             <section className="panel">
               <h3 className="panel-title">Hour × day of week</h3>
-              <HeatmapChart city={city} />
+              <HeatmapChart />
             </section>
             <div className="panel-grid">
               <section className="panel">
                 <h3 className="panel-title">Weekday hourly profile</h3>
-                <HourlyProfileChart city={city} />
+                <HourlyProfileChart />
               </section>
               <section className="panel">
                 <h3 className="panel-title">Day of week</h3>
-                <DayOfWeekChart city={city} />
+                <DayOfWeekChart />
               </section>
             </div>
           </>
@@ -150,7 +140,6 @@ export default function App() {
           <section className="panel">
             <div className="station-explorer">
               <StationMap
-                city={city}
                 onSelectStation={setSelectedStation}
                 selectedStation={selectedStation}
               />
@@ -168,11 +157,11 @@ export default function App() {
           <>
             <section className="panel">
               <h3 className="panel-title">Month-on-month comparison</h3>
-              <MonthTable city={city} />
+              <MonthTable />
             </section>
             <section className="panel">
               <h3 className="panel-title">School holiday effect</h3>
-              <SchoolHolidayChart city={city} />
+              <SchoolHolidayChart />
             </section>
           </>
         )}
@@ -182,9 +171,8 @@ export default function App() {
         <p>
           Data: VIC DTP — SCATS (~3,860 sites) · Bluetooth speed (4,711 links) · TIRTL (288 sites) · PT patronage · Vehicle registrations
           {' · '}Service VIC Servo Saver (1,678 fuel stations) · AIP wholesale prices · EIA Brent crude
-          {' · '}TfNSW (Sydney, 26 stations)
           {monitorData?.data_freshness &&
-            <> · Latest: VIC {monitorData.data_freshness.VIC}</>
+            <> · Latest: {monitorData.data_freshness}</>
           }
         </p>
       </footer>

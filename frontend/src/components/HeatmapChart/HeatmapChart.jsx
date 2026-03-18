@@ -3,7 +3,7 @@
  * Green = light traffic, amber = moderate, red = heavy.
  * Built as a pure HTML/CSS grid (Recharts doesn't do heatmaps well).
  *
- * @param {{ city: string }} props
+ * @param {{ }} props
  */
 import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS } from '../../constants';
@@ -26,9 +26,9 @@ function getColor(value, max) {
   return 'var(--hm-6)';
 }
 
-export default function HeatmapChart({ city }) {
+export default function HeatmapChart() {
   const { data, loading, error } = useTrafficData('/api/traffic/heatmap', {
-    city, weeks: 12,
+    weeks: 12,
   });
 
   if (loading) return <div className="chart-loading">Loading heatmap…</div>;

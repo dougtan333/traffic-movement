@@ -1,8 +1,6 @@
 /**
  * DayOfWeekChart — bar chart showing Mon–Sun traffic averages.
- * Business hours only (7am–6pm) to capture commuter signal.
- *
- * @param {{ city: string }} props
+ * Business hours only (7am–6pm) to capture commuter signal. Victoria only.
  */
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -11,16 +9,16 @@ import {
 import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS } from '../../constants';
 
-export default function DayOfWeekChart({ city }) {
+export default function DayOfWeekChart() {
   const { data, loading, error } = useTrafficData('/api/traffic/day-of-week', {
-    city, year: 2025,
+    year: 2025,
   });
 
   if (loading) return <div className="chart-loading">Loading…</div>;
   if (error) return <div className="chart-error">Error: {error}</div>;
   if (!data?.data?.length) return null;
 
-  const cityColor = CITY_COLORS[city];
+  const cityColor = CITY_COLORS.melbourne;
 
   return (
     <div className="chart-container">

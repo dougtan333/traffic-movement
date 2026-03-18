@@ -202,7 +202,12 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
-## Decision log format
+### DEC-019 — Remove all Sydney/NSW data from dashboard
+**Decision:** All Sydney/NSW references removed from API endpoints, frontend components, and constants. Dashboard is Victoria-only. NSW data retained in DuckDB (21.1M rows) but not queried or displayed.
+**Rationale:** NSW sensor network is degrading (only 26 of 295 stations reliable), data quality differs substantially from VIC. Maintaining dual-city logic adds complexity for little value. VIC has 10+ data sources (SCATS, Bluetooth, TIRTL, PT, fleet, fuel prices); NSW has one (counts only). Cleaner product with single-state focus.
+**What was removed:** CitySelector component, city state in App.jsx, city query parameter from all API endpoints, `api/constants.py` (reliable network IDs), Sydney colour from CSS/constants, city-conditional rendering in SpeedPanel/StationMap/HourlyProfileChart.
+**What was retained:** NSW data in DuckDB (not deleted — available for future use if needed), NSW ingestion scripts (not deleted — dormant).
+**Status:** Confirmed ✅
 
 When adding a new entry, use this format:
 

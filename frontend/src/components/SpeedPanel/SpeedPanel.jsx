@@ -1,9 +1,6 @@
 /**
  * SpeedPanel — real-time Melbourne speed overview from Bluetooth sensors.
  * Supports filtering by road name or freeways only.
- * Melbourne only — hidden for Sydney.
- *
- * @param {{ city: string }} props
  */
 import { useState, useEffect } from 'react';
 import {
@@ -13,25 +10,23 @@ import {
 import { API_URL } from '../../constants';
 import './SpeedPanel.css';
 
-export default function SpeedPanel({ city }) {
+export default function SpeedPanel() {
   const [filter, setFilter] = useState('all');
   const [roads, setRoads] = useState([]);
   const [snapshot, setSnapshot] = useState(null);
   const [trend, setTrend] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch road list once (Melbourne only)
+  // Fetch road list once
   useEffect(() => {
-    if (city !== 'melbourne') return;
     fetch(`${API_URL}/api/speed/roads`)
       .then(r => r.json())
       .then(d => setRoads(d.roads || []))
       .catch(() => {});
-  }, [city]);
+  }, []);
 
-  // Fetch snapshot + trend when filter or city changes
+  // Fetch snapshot + trend when filter changes
   useEffect(() => {
-    if (city !== 'melbourne') return;
     const params = filter === 'freeways' ? 'freeways=true'
       : filter !== 'all' ? `road=${encodeURIComponent(filter)}`
       : '';
@@ -43,10 +38,7 @@ export default function SpeedPanel({ city }) {
       setTrend(tr);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [filter, city]);
-
-  // Render nothing for non-Melbourne
-  if (city !== 'melbourne') return null;
+  }, [filter]);
 
   if (loading && !snapshot) return <div className="chart-loading">Loading speed data…</div>;
   if (!snapshot?.summary) return <div className="chart-loading">No speed data yet — poller may not be running</div>;
