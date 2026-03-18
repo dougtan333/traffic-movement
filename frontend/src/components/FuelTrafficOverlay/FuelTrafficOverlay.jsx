@@ -19,14 +19,20 @@ export default function FuelTrafficOverlay() {
   if (error) return <div className="chart-error">Error: {error}</div>;
   if (!data?.data?.length) return <div className="chart-empty">No data</div>;
 
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
   // Last 52 weeks for readability
   const recent = data.data.slice(-52);
-  const chartData = recent.map(d => ({
-    week: d.week,
-    label: new Date(d.week + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }),
-    traffic: d.traffic_avg_per_station,
-    tgp: d.tgp_cpl,
-  }));
+  const chartData = recent.map(d => {
+    const dt = new Date(d.week + 'T00:00:00');
+    return {
+      week: d.week,
+      label: dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }),
+      dayLabel: `${DAYS[dt.getDay()]} ${dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+      traffic: d.traffic_avg_per_station,
+      tgp: d.tgp_cpl,
+    };
+  });
 
   return (
     <div className="traffic-overlay">
@@ -51,6 +57,10 @@ export default function FuelTrafficOverlay() {
           />
           <Tooltip
             contentStyle={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', fontSize: 12 }}
+            labelFormatter={(label, payload) => {
+              const item = payload?.[0]?.payload;
+              return item?.dayLabel || label;
+            }}
             formatter={(val, name) => {
               if (name === 'Traffic') return [val?.toLocaleString(), name];
               return val ? [`${val.toFixed(1)}c`, name] : ['-', name];
