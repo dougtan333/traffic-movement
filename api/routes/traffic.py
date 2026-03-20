@@ -1,12 +1,12 @@
 """
 Traffic data endpoints — hourly profiles, weekly trends, daily counts.
 
-Victoria only. All queries use the full SCATS network (~3,860 stations).
+Victoria only. Weekly trend uses metro core stations (P75+ daily volume).
 """
 
 from fastapi import APIRouter, Query
 from typing import Optional
-from api.db import get_connection
+from api.db import get_connection, create_metro_core_table
 
 router = APIRouter()
 
@@ -38,36 +38,50 @@ def hourly_profile(year: int = Query(2025)):
 
 
 @router.get("/hourly-profile-multi")
-def hourly_profile_multi(years: str = Query("2024,2025,2026")):
-    """Weekday hourly profiles for multiple years, for overlay comparison."""
+def hourly_profile_multi(
+    years: str = Query("2024,2025,2026"),
+    day_type: str = Query("weekday"),
+):
+    """Hourly profiles for multiple years. day_type: weekday | saturday | sunday."""
     con = get_connection()
     year_list = [int(y.strip()) for y in years.split(",")]
+
+    if day_type == "saturday":
+        day_filter = "ISODOW(CAST(h.ts_hour AS DATE)) = 6"
+    elif day_type == "sunday":
+        day_filter = "ISODOW(CAST(h.ts_hour AS DATE)) = 7"
+    else:
+        day_filter = "is_weekday = true"
+
     result = {}
     for year in year_list:
         rows = con.execute(f"""
             SELECT hour_of_day, avg(vehicle_count)::int as avg_count
             FROM hourly_counts h
-            WHERE {VIC_FILTER} AND is_weekday = true
+            WHERE {VIC_FILTER} AND {day_filter}
               AND ts_hour >= ?::TIMESTAMP AND ts_hour < ?::TIMESTAMP
             GROUP BY hour_of_day ORDER BY hour_of_day
         """, [f"{year}-01-01", f"{year + 1}-01-01"]).fetchall()
         result[str(year)] = [{"hour": r[0], "avg_count": r[1]} for r in rows]
     con.close()
-    return {"city": "melbourne", "years": year_list, "data": result}
+    return {"city": "melbourne", "years": year_list, "day_type": day_type, "data": result}
 
 
 @router.get("/weekly-trend")
 def weekly_trend(weeks: int = Query(26, ge=4, le=104)):
-    """Weekly weekday average vehicles per station, most recent N weeks."""
+    """Weekly weekday average vehicles per station, most recent N weeks.
+    Metro core stations only. Includes YoY comparison data."""
     con = get_connection()
+    core_count = create_metro_core_table(con)
     rows = con.execute(f"""
         SELECT date_trunc('week', CAST(ts_hour AS DATE))::DATE as week,
                sum(vehicle_count)::bigint
                    / count(DISTINCT CAST(ts_hour AS DATE))
-                   / count(DISTINCT station_id) as avg_per_station,
+                   / count(DISTINCT h.station_id) as avg_per_station,
                count(DISTINCT CAST(ts_hour AS DATE)) as weekdays,
-               count(DISTINCT station_id) as stations
+               count(DISTINCT h.station_id) as stations
         FROM hourly_counts h
+        INNER JOIN metro_core_stations m ON h.station_id = m.station_id
         WHERE {VIC_FILTER}
           AND ISODOW(CAST(ts_hour AS DATE)) <= 5
         GROUP BY 1
@@ -75,10 +89,38 @@ def weekly_trend(weeks: int = Query(26, ge=4, le=104)):
         ORDER BY 1 DESC
         LIMIT {weeks}
     """).fetchall()
-    con.close()
     data = [{"week": str(r[0]), "avg_per_station": int(r[1]),
              "weekdays": r[2], "stations": r[3]} for r in reversed(rows)]
-    return {"city": "melbourne", "weeks": len(data), "data": data}
+
+    # YoY comparison: same calendar weeks, one year prior
+    if data:
+        earliest = data[0]["week"]
+        latest = data[-1]["week"]
+        yoy_rows = con.execute(f"""
+            SELECT date_trunc('week', CAST(ts_hour AS DATE))::DATE as week,
+                   sum(vehicle_count)::bigint
+                       / count(DISTINCT CAST(ts_hour AS DATE))
+                       / count(DISTINCT h.station_id) as avg_per_station,
+                   count(DISTINCT CAST(ts_hour AS DATE)) as weekdays,
+                   count(DISTINCT h.station_id) as stations
+            FROM hourly_counts h
+            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
+            WHERE {VIC_FILTER}
+              AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+              AND CAST(ts_hour AS DATE) >= (DATE '{earliest}' - INTERVAL '1 year')
+              AND CAST(ts_hour AS DATE) < (DATE '{latest}' - INTERVAL '1 year' + INTERVAL '8 days')
+            GROUP BY 1
+            HAVING count(DISTINCT CAST(ts_hour AS DATE)) >= 3
+            ORDER BY 1
+        """).fetchall()
+        yoy_data = [{"week": str(r[0]), "avg_per_station": int(r[1]),
+                      "weekdays": r[2], "stations": r[3]} for r in yoy_rows]
+    else:
+        yoy_data = []
+
+    con.close()
+    return {"city": "melbourne", "weeks": len(data), "metro_core_stations": core_count,
+            "data": data, "yoy_data": yoy_data}
 
 
 @router.get("/daily-counts")
@@ -86,8 +128,9 @@ def daily_counts(
     date_from: str = Query("2026-02-01"),
     date_to: str = Query("2026-03-31"),
 ):
-    """Daily total and per-station average with calendar context."""
+    """Daily total and per-station average with calendar context. Metro core stations only."""
     con = get_connection()
+    create_metro_core_table(con)
     rows = con.execute(f"""
         SELECT CAST(h.ts_hour AS DATE) as day,
                sum(h.vehicle_count)::bigint as daily_total,
@@ -97,6 +140,7 @@ def daily_counts(
                c.is_weekday,
                c.is_public_holiday_vic as is_holiday
         FROM hourly_counts h
+        INNER JOIN metro_core_stations m ON h.station_id = m.station_id
         JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
         WHERE {VIC_FILTER}
           AND CAST(h.ts_hour AS DATE) BETWEEN '{date_from}' AND '{date_to}'
@@ -179,14 +223,16 @@ def station_profile(station_id: str = Query(...), year: int = Query(2025)):
 
 @router.get("/month-on-month")
 def month_on_month():
-    """Monthly average weekday traffic per station with YoY % change."""
+    """Monthly average weekday traffic per station with YoY % change. Metro core stations only."""
     con = get_connection()
+    create_metro_core_table(con)
     rows = con.execute(f"""
         WITH daily AS (
-            SELECT station_id, CAST(ts_hour AS DATE) as day,
-                   SUM(vehicle_count) as daily_total
+            SELECT h.station_id, CAST(h.ts_hour AS DATE) as day,
+                   SUM(h.vehicle_count) as daily_total
             FROM hourly_counts h
-            WHERE {VIC_FILTER} AND ISODOW(CAST(ts_hour AS DATE)) <= 5
+            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
+            WHERE {VIC_FILTER} AND ISODOW(CAST(h.ts_hour AS DATE)) <= 5
             GROUP BY 1, 2
         )
         SELECT date_trunc('month', day)::DATE as month,
@@ -216,14 +262,16 @@ def month_on_month():
 
 @router.get("/school-holiday-effect")
 def school_holiday_effect():
-    """Compare average weekday traffic during school holidays vs term time."""
+    """Compare average weekday traffic during school holidays vs term time. Metro core stations only."""
     con = get_connection()
+    create_metro_core_table(con)
     rows = con.execute(f"""
         WITH daily AS (
             SELECT h.station_id, CAST(h.ts_hour AS DATE) as day,
                    c.is_school_holiday_vic as is_school_holiday,
                    SUM(h.vehicle_count) as daily_total
             FROM hourly_counts h
+            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
             JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
             WHERE {VIC_FILTER} AND c.is_weekday = true
               AND h.ts_hour >= CURRENT_DATE - INTERVAL '12 months'

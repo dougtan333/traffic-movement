@@ -73,7 +73,7 @@ export default function HeatmapChart() {
                   key={h}
                   className="heatmap-cell"
                   style={{ background: getColor(val, max) }}
-                  title={`${day} ${HOUR_LABELS[h]}: ${val.toLocaleString()} avg/station`}
+                  title={`${day} ${HOUR_LABELS[h]}: ${val.toLocaleString()} vehicles/15 min/station`}
                 />
               );
             })}

@@ -262,26 +262,27 @@ Key fields: date, day_of_week, is_weekday, week_number, month, year, is_public_h
 - Historical snapshots retained — never overwrite, always append or version
 - Bluetooth speed data: polling script needed to build historical archive (Phase 2)
 
-### Current database state (as of 18 March 2026)
+### Current database state (as of 21 March 2026)
 
 | Table | Rows | Coverage |
 |---|---|---|
-| stations | 4,259 | 295 Sydney permanent + 3,964 Melbourne SCATS-matched |
-| hourly_counts | 94,470,415 | NSW: 21.1M (2006–Feb 2026) / VIC: 73.4M (Jan 2024–Mar 2026) |
-| tirtl_counts | 3,090,000 | VIC: 406 sites (1–13 March 2026) |
+| stations | 3,964 | Melbourne SCATS-matched (NSW retained but unused) |
+| hourly_counts | 73,361,814 | VIC: Jan 2024–Mar 2026 (~3,860 stations) |
+| tirtl_counts | 3,090,077 | VIC: 406 sites (1–13 March 2026) |
 | tirtl_sites | 406 | VIC TIRTL sensor locations |
-| speed_observations | growing | VIC Bluetooth polling (5-min intervals) |
+| speed_observations | ~895,090 | VIC Bluetooth polling (accumulating) |
 | bluetooth_routes | 261 | VIC freeway/arterial routes |
 | bluetooth_links | 4,711 | VIC Bluetooth receiver links |
 | pt_patronage_monthly | 95 | VIC: Jan 2018–Nov 2025, 6 modes |
 | pt_patronage_daytype | 4,300 | VIC: weekday/school-hol/weekend × mode |
 | vehicle_registrations | 6 | VIC: Q4 2025, by fuel type |
 | fuel_stations | 1,678 | VIC: all registered stations, 67 brands, 458 postcodes |
-| fuel_prices | ~7,114/day | VIC: daily retail snapshots from Servo Saver (from 18 Mar 2026) |
-| wholesale_prices | 5,795 | Daily TGP 2004–today + Brent crude + AUD/USD |
-| calendar | 2,557 | 2020–2026 with holidays, school terms, events |
+| fuel_prices | ~14,277 | VIC: daily retail snapshots (from 18 Mar 2026, growing) |
+| wholesale_prices | 840 | Daily TGP 2023–today + Brent crude + AUD/USD (pre-2023 pruned) |
+| calendar | 1,461 | 2023–2026 with holidays, school terms, events (pre-2023 pruned) |
 | data_modules | — | Manifest |
-| DB file size | ~7.0 GB | |
+| **DB file size** | **1.7 GB** | Compacted from 7.7GB via parquet export/reimport |
+| **Metro core** | **967 stations** | P75+ by daily volume from Feb 2026 baseline |
 
 ### Ingestion scripts
 
@@ -301,6 +302,8 @@ Key fields: date, day_of_week, is_weekday, week_number, month, year, is_public_h
 | ingest_wholesale_prices.py | AIP Excel + HTML scrape | wholesale_prices | --seed for Excel, --refresh for scrape |
 | refresh_brent.py | EIA API + RBA CSV | wholesale_prices | Brent USD/bbl + AUD/USD rate + AUD c/l conversion |
 | weekly_refresh.py | hourly_counts (query) | stdout + JSON report | Fuel crisis tracker — weekly baseline comparison |
+| daily_refresh.py | Servo Saver + EIA + RBA + AIP | fuel_prices, wholesale_prices | Orchestrates all daily fuel/price refreshes. `--loop` for 7am AEST |
+| compact_db.py | All tables (parquet) | Fresh DB file | Export/reimport to reclaim WAL bloat. Use CREATE TABLE AS, not INSERT INTO |
 | inspect_data.py | all tables (query) | stdout | One-off data inspection report |
 
 ### Monitoring tools

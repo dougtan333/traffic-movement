@@ -43,7 +43,10 @@ export default function SpeedPanel() {
   if (loading && !snapshot) return <div className="chart-loading">Loading speed data…</div>;
   if (!snapshot?.summary) return <div className="chart-loading">No speed data yet — poller may not be running</div>;
 
-  const { summary, timestamp } = snapshot;
+  const { summary, timestamp, thresholds } = snapshot;
+  const freeMin = thresholds?.free_flow_min_kmh ?? 40;
+  const slowMax = thresholds?.slow_max_kmh ?? 20;
+  const refSpeed = thresholds?.ref_speed_kmh ?? 80;
   const total = summary.slow_links + summary.moderate_links + summary.free_flow_links;
   const slowPct = total ? Math.round((summary.slow_links / total) * 100) : 0;
   const modPct = total ? Math.round((summary.moderate_links / total) * 100) : 0;
@@ -60,6 +63,8 @@ export default function SpeedPanel() {
 
   return (
     <div className="speed-panel">
+      <h3 className="panel-title">Live speed — Bluetooth sensors</h3>
+      <p className="panel-note">A link is the stretch of road between two Bluetooth receivers, typically on freeways and major arterials. Speed is measured from the travel time of detected Bluetooth devices passing between the pair.</p>
       <div className="speed-filter-row">
         <select
           className="speed-filter"
@@ -109,9 +114,9 @@ export default function SpeedPanel() {
           {slowPct > 0 && <div className="dist-segment dist-slow" style={{ width: `${slowPct}%` }}>{slowPct > 5 ? `${slowPct}%` : ''}</div>}
         </div>
         <div className="dist-legend">
-          <span><i className="dot dot-free" /> Free-flow (40+ km/h)</span>
-          <span><i className="dot dot-mod" /> Moderate (20–40)</span>
-          <span><i className="dot dot-slow" /> Slow (&lt;20)</span>
+          <span><i className="dot dot-free" /> Free-flow ({freeMin}+ km/h)</span>
+          <span><i className="dot dot-mod" /> Moderate ({slowMax}–{freeMin})</span>
+          <span><i className="dot dot-slow" /> Slow (&lt;{slowMax})</span>
         </div>
       </div>
 

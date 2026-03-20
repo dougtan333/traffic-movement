@@ -20,7 +20,7 @@ export default function SchoolHolidayChart() {
   if (!data?.monthly?.length) return null;
 
   const { summary, monthly } = data;
-  const color = CITY_COLORS[city];
+  const color = CITY_COLORS.melbourne;
 
   // Filter to months that have both term and holiday data
   const chartData = monthly
@@ -34,11 +34,11 @@ export default function SchoolHolidayChart() {
     <div className="school-holiday-panel">
       <div className="school-holiday-summary">
         <div className="sh-metric">
-          <span className="sh-label">Term-time avg</span>
+          <span className="sh-label">Term-time avg vehicles/day/station</span>
           <span className="sh-value">{summary.term_avg.toLocaleString()}</span>
         </div>
         <div className="sh-metric">
-          <span className="sh-label">Holiday avg</span>
+          <span className="sh-label">Holiday avg vehicles/day/station</span>
           <span className="sh-value">{summary.holiday_avg.toLocaleString()}</span>
         </div>
         <div className="sh-metric">
@@ -51,8 +51,8 @@ export default function SchoolHolidayChart() {
           <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v) => v ? [v.toLocaleString(), ''] : ['No data', '']} />
+            <YAxis tick={{ fontSize: 11 }} label={{ value: 'Vehicles/day/station', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fill: '#888' } }} />
+            <Tooltip formatter={(v) => v ? [v.toLocaleString(), 'vehicles/day/station'] : ['No data', '']} />
             <Legend />
             <Bar dataKey="term" name="Term time" fill={color} radius={[3, 3, 0, 0]} />
             <Bar dataKey="holiday" name="School holiday" fill={`${color}66`} radius={[3, 3, 0, 0]} />

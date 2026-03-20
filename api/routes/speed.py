@@ -57,6 +57,18 @@ def speed_snapshot(
     filt, filt_params = _link_filter(road, freeways)
     join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
 
+    # Compute dynamic speed thresholds: 85th percentile of all observed speeds
+    # for the selected filter, used as the reference "free-flow" speed.
+    # Bands: free-flow >= 75% of ref, moderate 40-75%, slow < 40%.
+    ref_row = con.execute(f"""
+        SELECT percentile_disc(0.85) WITHIN GROUP (ORDER BY so.speed_kmh) as p85
+        FROM speed_observations so {join}
+        WHERE {filt}
+    """, filt_params).fetchone()
+    ref_speed = ref_row[0] if ref_row and ref_row[0] else 80  # fallback 80 km/h
+    free_threshold = round(ref_speed * 0.75)
+    slow_threshold = round(ref_speed * 0.40)
+
     summary = con.execute(f"""
         SELECT
             count(*) as links,
@@ -64,12 +76,12 @@ def speed_snapshot(
             min(so.speed_kmh) as min_speed,
             max(so.speed_kmh) as max_speed,
             avg(so.delay_sec)::int as avg_delay,
-            count(*) FILTER (WHERE so.speed_kmh < 20) as slow_links,
-            count(*) FILTER (WHERE so.speed_kmh >= 20 AND so.speed_kmh < 40) as moderate_links,
-            count(*) FILTER (WHERE so.speed_kmh >= 40) as free_flow_links
+            count(*) FILTER (WHERE so.speed_kmh < ?) as slow_links,
+            count(*) FILTER (WHERE so.speed_kmh >= ? AND so.speed_kmh < ?) as moderate_links,
+            count(*) FILTER (WHERE so.speed_kmh >= ?) as free_flow_links
         FROM speed_observations so {join}
         WHERE so.ts_interval = ? AND {filt}
-    """, [latest] + filt_params).fetchone()
+    """, [slow_threshold, slow_threshold, free_threshold, free_threshold, latest] + filt_params).fetchone()
 
     slowest = con.execute(f"""
         SELECT so.route_id, bl.link_name, so.speed_kmh, so.travel_time_sec,
@@ -86,6 +98,11 @@ def speed_snapshot(
     return {
         "timestamp": str(latest),
         "filter": filter_label,
+        "thresholds": {
+            "ref_speed_kmh": int(ref_speed),
+            "free_flow_min_kmh": free_threshold,
+            "slow_max_kmh": slow_threshold,
+        },
         "summary": {
             "links": summary[0],
             "avg_speed_kmh": summary[1],

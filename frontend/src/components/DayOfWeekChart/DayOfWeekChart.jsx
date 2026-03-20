@@ -22,12 +22,12 @@ export default function DayOfWeekChart() {
 
   return (
     <div className="chart-container">
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart data={data.data} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
           <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 11 }} domain={[0, 'dataMax + 100']} />
-          <Tooltip formatter={(v) => [v.toLocaleString(), 'Avg/hr']} />
+          <YAxis tick={{ fontSize: 11 }} domain={[0, 'dataMax + 100']} label={{ value: 'Vehicles/hr/station', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fill: '#888' } }} />
+          <Tooltip formatter={(v) => [v.toLocaleString(), 'Vehicles/hr/station']} />
           <Bar dataKey="avg_count" radius={[4, 4, 0, 0]}>
             {data.data.map((entry, i) => (
               <Cell key={i} fill={entry.day_num <= 5 ? cityColor : `${cityColor}66`} />

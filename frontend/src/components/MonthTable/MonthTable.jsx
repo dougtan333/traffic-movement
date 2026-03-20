@@ -42,9 +42,9 @@ export default function MonthTable() {
         <thead>
           <tr>
             <th>Month</th>
-            <th className="num">Avg/station</th>
+            <th className="num">Vehicles/day/station</th>
             <th className="num">Stations</th>
-            <th className="num">Prior yr</th>
+            <th className="num">Prior year</th>
             <th className="num">YoY change</th>
           </tr>
         </thead>

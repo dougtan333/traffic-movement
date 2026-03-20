@@ -47,11 +47,12 @@ export default function DailyCountsChart({ dateFrom = '2026-02-01', dateTo = '20
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={2} angle={-45} textAnchor="end" height={50} />
           <YAxis
+            label={{ value: 'Vehicles/day/station', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fill: '#888' } }}
             tick={{ fontSize: 11 }}
             tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
           />
           <Tooltip
-            formatter={(value) => [value.toLocaleString(), 'Avg/station']}
+            formatter={(value) => [value.toLocaleString(), 'Vehicles/day/station']}
             labelFormatter={(_, payload) => {
               if (!payload?.[0]) return '';
               const d = payload[0].payload;

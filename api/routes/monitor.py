@@ -3,11 +3,12 @@ Weekly monitor endpoint — fuel crisis tracker.
 
 Returns the latest weekly comparison report: current week vs
 Feb 2026 baseline, vs prior week, vs same week last year.
-Victoria only.
+Victoria only. Filtered to metro core stations (P75+ daily volume
+from Feb 2026 baseline) for a sharper urban signal.
 """
 
 from fastapi import APIRouter
-from api.db import get_connection
+from api.db import get_connection, create_metro_core_table, BASELINE_START, BASELINE_END
 from datetime import date
 
 router = APIRouter()
@@ -20,22 +21,26 @@ VIC_FILTER = "h.state = 'VIC'"
 
 @router.get("/")
 def monitor_report():
-    """Weekly fuel crisis monitor — Victoria."""
+    """Weekly fuel crisis monitor — Victoria metro core."""
     con = get_connection()
 
     freshness = con.execute("""
         SELECT max(ts_hour)::DATE as latest FROM hourly_counts WHERE state = 'VIC'
     """).fetchone()
 
-    # Weekly trend (last 12 weeks)
+    # Identify metro core stations: P75+ avg daily volume in baseline period
+    core_count = create_metro_core_table(con)
+
+    # Weekly trend — metro core stations only
     weeks = con.execute(f"""
         SELECT date_trunc('week', CAST(ts_hour AS DATE))::DATE as week,
                sum(vehicle_count)::bigint
                    / count(DISTINCT CAST(ts_hour AS DATE))
-                   / count(DISTINCT station_id) as avg_per_station,
+                   / count(DISTINCT h.station_id) as avg_per_station,
                count(DISTINCT CAST(ts_hour AS DATE)) as days,
-               count(DISTINCT station_id) as stations
+               count(DISTINCT h.station_id) as stations
         FROM hourly_counts h
+        INNER JOIN metro_core_stations m ON h.station_id = m.station_id
         WHERE {VIC_FILTER} AND ISODOW(CAST(ts_hour AS DATE)) <= 5
           AND ts_hour >= '2026-01-01'
         GROUP BY 1
@@ -43,12 +48,13 @@ def monitor_report():
         ORDER BY 1
     """).fetchall()
 
-    # Baseline
+    # Baseline — metro core stations only
     baseline = con.execute(f"""
         SELECT sum(vehicle_count)::bigint
                / count(DISTINCT CAST(ts_hour AS DATE))
-               / count(DISTINCT station_id)
+               / count(DISTINCT h.station_id)
         FROM hourly_counts h
+        INNER JOIN metro_core_stations m ON h.station_id = m.station_id
         WHERE {VIC_FILTER} AND ISODOW(CAST(ts_hour AS DATE)) <= 5
           AND CAST(ts_hour AS DATE) BETWEEN '{BASELINE_START}' AND '{BASELINE_END}'
     """).fetchone()[0]
@@ -71,4 +77,5 @@ def monitor_report():
         "vs_prior_week_pct": pct(latest["avg"], prior["avg"]) if latest and prior else None,
         "weekly_trend": week_data,
         "crisis_date": CRISIS_DATE,
+        "metro_core_stations": core_count,
     }

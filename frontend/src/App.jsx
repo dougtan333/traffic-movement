@@ -57,12 +57,14 @@ export default function App() {
         {tab === 'monitor' && (
           <>
             <section className="panel">
-              <h3 className="panel-title">Fuel crisis tracker</h3>
+              <h3 className="panel-title">Weekly traffic — metro core stations (top 25% by volume)</h3>
+              <p className="panel-note">A station is a SCATS loop detector at a signalised intersection, counting vehicles every 15 minutes. Metro core = the busiest quarter of Melbourne's ~3,860 stations.</p>
               <MetricCards data={monitorData} />
               <WeeklyTrendChart />
             </section>
             <section className="panel">
-              <h3 className="panel-title">Daily traffic</h3>
+              <h3 className="panel-title">Daily traffic — metro core stations</h3>
+              <p className="panel-note">Daily vehicle count averaged across the same top-25% stations. Weekdays shown in solid, weekends and holidays faded.</p>
               <DailyCountsChart />
             </section>
             <SpeedPanel />
@@ -72,16 +74,19 @@ export default function App() {
         {tab === 'patterns' && (
           <>
             <section className="panel">
-              <h3 className="panel-title">Hour × day of week</h3>
+              <h3 className="panel-title">Traffic intensity — hour × day of week</h3>
+              <p className="panel-note">Average vehicles per 15-min interval per station, across all ~3,860 SCATS stations over the last 12 weeks. Darker cells = busier periods.</p>
               <HeatmapChart />
             </section>
             <div className="panel-grid">
               <section className="panel">
-                <h3 className="panel-title">Weekday hourly profile</h3>
+                <h3 className="panel-title">Hourly profile — year comparison</h3>
+                <p className="panel-note">Average vehicles per 15-min interval per station at each hour. Toggle between weekdays, Saturday, and Sunday. Overlays multiple years.</p>
                 <HourlyProfileChart />
               </section>
               <section className="panel">
-                <h3 className="panel-title">Day of week</h3>
+                <h3 className="panel-title">Day of week — business hours</h3>
+                <p className="panel-note">Average vehicles per hour per station, 7am–6pm only, across all stations. Weekend bars faded.</p>
                 <DayOfWeekChart />
               </section>
             </div>
@@ -156,11 +161,11 @@ export default function App() {
         {tab === 'analysis' && (
           <>
             <section className="panel">
-              <h3 className="panel-title">Month-on-month comparison</h3>
+              <h3 className="panel-title">Month-on-month — metro core stations</h3>
               <MonthTable />
             </section>
             <section className="panel">
-              <h3 className="panel-title">School holiday effect</h3>
+              <h3 className="panel-title">School holiday effect — metro core stations</h3>
               <SchoolHolidayChart />
             </section>
           </>

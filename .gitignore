@@ -5,7 +5,7 @@
 logs/
 
 # Data files (large, not for git)
-db/amip.duckdb
+db/
 data_vic_new/
 road_traffic_counts_hourly_permanent/
 road_traffic_counts_station_reference.csv

@@ -209,6 +209,31 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 **What was retained:** NSW data in DuckDB (not deleted — available for future use if needed), NSW ingestion scripts (not deleted — dormant).
 **Status:** Confirmed ✅
 
+### DEC-020 — Metro core station filter (top 25% by volume)
+**Decision:** Monitor, weekly trend, daily counts, and Analysis tab endpoints filter to "metro core" stations — the top 25% (P75+) by average daily volume from the Feb 2026 baseline period. This yields ~967 stations out of ~3,860.
+**Rationale:** Averaging across all stations (including quiet suburban intersections) dilutes the signal. A 5% drop at a station doing 40,000 vehicles/day is meaningful; at one doing 2,000/day it's noise. The P75 threshold (~46,272 daily vehicles) captures Melbourne's busy inner-urban arterials and freeway intersections where week-on-week changes are significant.
+**Implementation:** Shared helper `create_metro_core_table()` in `api/db.py` creates a temp table per request. Used by `/api/monitor/`, `/api/traffic/weekly-trend`, `/api/traffic/daily-counts`, `/api/traffic/month-on-month`, `/api/traffic/school-holiday-effect`.
+**Ruled out:** Full network (~3,860 stations) — too much suburban noise. Top 10% (~400 stations) — considered too narrow for a robust average.
+**Status:** Confirmed ✅
+
+---
+
+### DEC-021 — Database compaction via parquet export/reimport
+**Decision:** When DuckDB file bloats from continuous Bluetooth poller writes, compact by exporting all tables to parquet (`EXPORT DATABASE ... FORMAT PARQUET`), creating a fresh DB, and loading via `CREATE TABLE AS SELECT * FROM read_parquet(...)`. Do NOT use `INSERT INTO` for large tables — DuckDB runs out of memory.
+**Rationale:** DuckDB's VACUUM does not effectively reclaim space from WAL-heavy workloads. The Bluetooth poller writes 4,711 rows every 5 minutes, and over time the WAL bloat grew the DB from ~800MB actual data to 7.7GB. Parquet export + reimport is the reliable compaction method.
+**Key learning:** `CREATE TABLE AS` works where `INSERT INTO` fails for large tables (73M rows) — it uses less memory.
+**Status:** Confirmed ✅
+
+---
+
+### DEC-022 — Daily automated refresh script
+**Decision:** `scripts/daily_refresh.py` orchestrates all daily data refreshes: retail fuel (Servo Saver), Brent crude (EIA), AUD/USD (RBA), and AIP wholesale prices. Run with `--loop` for 7am AEST daily execution. Bluetooth poller runs separately (continuous).
+**Rationale:** Consolidates the three separate fuel refresh scripts into one orchestrated job. Each sub-script uses connect/disconnect per operation to coexist with the Bluetooth poller's write lock.
+**Ruled out:** Separate cron jobs per script — harder to monitor, no consolidated log.
+**Status:** Confirmed ✅
+
+---
+
 When adding a new entry, use this format:
 
 ```
