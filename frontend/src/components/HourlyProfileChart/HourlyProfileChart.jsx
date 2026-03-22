@@ -35,8 +35,10 @@ export default function HourlyProfileChart() {
   });
   const { data: speedData } = useTrafficData('/api/tirtl/speed-by-hour', {});
 
-  if (loading) return <div className="chart-loading">Loading hourly profile…</div>;
-  if (error) return <div className="chart-error">Error: {error}</div>;
+  // On first load show spinner; on day-type toggle keep the old chart visible
+  // so Recharts animates the data transition instead of remounting.
+  if (!data && loading) return <div className="chart-loading">Loading hourly profile…</div>;
+  if (error && !data) return <div className="chart-error">Error: {error}</div>;
   if (!data?.data) return null;
 
   // Map TIRTL speed by hour for the matching day type
@@ -110,6 +112,9 @@ export default function HourlyProfileChart() {
             strokeDasharray="4 2"
             dot={false}
             connectNulls
+            isAnimationActive={true}
+            animationDuration={600}
+            animationEasing="ease-in-out"
           />
 
           {/* Volume lines on left axis */}
@@ -123,6 +128,9 @@ export default function HourlyProfileChart() {
               strokeWidth={y === yearKeys[yearKeys.length - 1] ? 2.5 : 1.5}
               strokeDasharray={y === yearKeys[yearKeys.length - 1] ? undefined : '5 3'}
               dot={false}
+              isAnimationActive={true}
+              animationDuration={600}
+              animationEasing="ease-in-out"
             />
           ))}
         </ComposedChart>
