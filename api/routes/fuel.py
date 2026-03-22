@@ -4,9 +4,15 @@ Serves Victorian fuel station prices and the oil-to-pump price chain.
 """
 from fastapi import APIRouter, Query
 from typing import Optional
+from datetime import date, timedelta
 from ..db import get_connection
 
 router = APIRouter(prefix="/api/fuel", tags=["fuel"])
+
+
+def _months_ago(months: int) -> str:
+    """Return ISO date string for approx N months before today."""
+    return (date.today() - timedelta(days=months * 30)).isoformat()
 
 
 @router.get("/state-average")
@@ -145,13 +151,14 @@ def price_chain(months: int = Query(6, description="Months of history")):
     con = get_connection()
 
     # Wholesale + Brent (daily trading days) — include rows with either TGP or Brent
-    wholesale = con.execute(f"""
+    cutoff = _months_ago(months)
+    wholesale = con.execute("""
         SELECT date, mel_ulp_tgp_cpl, brent_aud_cpl, brent_usd_bbl, aud_usd_rate
         FROM wholesale_prices
-        WHERE date >= CURRENT_DATE - INTERVAL '{months} months'
+        WHERE date >= ?::DATE
           AND (mel_ulp_tgp_cpl IS NOT NULL OR brent_usd_bbl IS NOT NULL)
         ORDER BY date
-    """).fetchall()
+    """, [cutoff]).fetchall()
 
     # Latest Brent price (may be more recent than TGP)
     latest_brent = con.execute("""
@@ -162,7 +169,7 @@ def price_chain(months: int = Query(6, description="Months of history")):
     """).fetchone()
 
     # Retail daily averages (from Servo Saver snapshots)
-    retail = con.execute(f"""
+    retail = con.execute("""
         SELECT snapshot_date,
                round(avg(price_cpl), 1) as avg_price,
                count(*) as stations
@@ -170,10 +177,10 @@ def price_chain(months: int = Query(6, description="Months of history")):
         WHERE fuel_type = 'U91'
           AND price_cpl > 0 AND price_cpl < 500
           AND is_available = true
-          AND snapshot_date >= CURRENT_DATE - INTERVAL '{months} months'
+          AND snapshot_date >= ?::DATE
         GROUP BY snapshot_date
         ORDER BY snapshot_date
-    """).fetchall()
+    """, [cutoff]).fetchall()
     con.close()
 
     return {
@@ -211,15 +218,14 @@ def traffic_overlay():
     con = get_connection()
     rows = con.execute("""
         WITH weekly_traffic AS (
-            SELECT date_trunc('week', CAST(ts_hour AS DATE))::DATE as week,
-                   sum(vehicle_count)::bigint / count(DISTINCT CAST(ts_hour AS DATE))
+            SELECT date_trunc('week', day)::DATE as week,
+                   sum(daily_total)::bigint / count(DISTINCT day)
                        / count(DISTINCT station_id) as avg_per_station
-            FROM hourly_counts
-            WHERE state = 'VIC'
-              AND ISODOW(CAST(ts_hour AS DATE)) <= 5
-              AND CAST(ts_hour AS DATE) >= DATE '2024-01-01'
+            FROM daily_station_summary
+            WHERE is_weekday = true
+              AND day >= DATE '2024-01-01'
             GROUP BY 1
-            HAVING count(DISTINCT CAST(ts_hour AS DATE)) >= 3
+            HAVING count(DISTINCT day) >= 3
         ),
         weekly_price AS (
             SELECT date_trunc('week', date)::DATE as week,

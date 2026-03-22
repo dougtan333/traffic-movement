@@ -5,7 +5,7 @@
 
 ## Current stage
 
-**Dashboard live with metro core filtering, YoY comparison, daily automated data refresh, aviation tab, and compacted database. Victoria-only ground transport + 5-city national aviation.**
+**Dashboard deployment-ready: pre-aggregated summary tables, security hardening, env-driven config, error handling, logging, backups. Victoria-only ground transport + 5-city national aviation.**
 
 Last updated: 22 March 2026
 
@@ -13,7 +13,7 @@ Last updated: 22 March 2026
 
 ## What this stage is about
 
-Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline covers road traffic (SCATS counts filtered to metro core P75+ stations), real-time speed (Bluetooth polling with 12h/24h/3d/7d time range selector), public transport patronage, vehicle fleet composition, fuel prices (retail, wholesale, international crude), and aviation (BITRE monthly airport traffic for 5 capital cities). Daily refresh script automates all fuel/price and aviation data updates. Database compacted from 7.7GB to 1.7GB via parquet export/reimport — viable for VPS hosting.
+Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline covers road traffic (SCATS counts filtered to metro core P75+ stations), real-time speed (Bluetooth polling with 12h/24h/3d/7d time range selector), public transport patronage, vehicle fleet composition, fuel prices (retail, wholesale, international crude), and aviation (BITRE monthly airport traffic for 5 capital cities). Daily refresh script automates all fuel/price and aviation data updates. Pre-aggregated summary tables (DEC-029) reduce 73M-row scans to 790K rows — API response times now 23–50ms for most endpoints. Security hardened: parameterized SQL, env-driven CORS/API URLs, global error handler, request logging, startup DB validation, React ErrorBoundary, daily backups. Ready for VPS deployment.
 
 ---
 
@@ -80,6 +80,24 @@ Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline 
 - [x] Chart height increases for longer timeframes, x-axis shows day names
 - [x] All historical bluetooth data retained permanently (no purging)
 
+### Deployment hardening (DEC-024 through DEC-029)
+- [x] Metro core materialized as permanent table (DEC-024) — no more per-request 73M-row scans
+- [x] Event-impact rewritten as single-pass query (DEC-025) — N+1 eliminated
+- [x] Env-driven CORS + API URL (DEC-026) — `CORS_ORIGINS` and `VITE_API_URL` env vars
+- [x] All user-input SQL parameterized (DEC-027) — `?` placeholders throughout
+- [x] Error handling, logging, validation, backups (DEC-028):
+  - Global exception handler returns clean JSON, no stack traces
+  - Request logging middleware (method, path, status, duration ms)
+  - Startup DB validation (fail fast if tables missing)
+  - React ErrorBoundary wrapping `<App>`
+  - Daily backup script (`scripts/backup_db.py`) with configurable retention
+- [x] Pre-aggregated summary tables (DEC-029):
+  - `daily_station_summary` (770K rows) + `hourly_city_summary` (19K rows)
+  - 11 endpoints rewired, 93x row reduction, 13x–77x faster responses
+  - `build_summaries.py --append` in daily refresh pipeline
+  - Raw `hourly_counts` (73M rows) retained as fallback
+  - Parquet archive of all raw data in `db/archive/` (410 MB)
+
 ### API (FastAPI, 20+ endpoints)
 - [x] Traffic: hourly-profile, hourly-profile-multi (with day_type param), weekly-trend (with YoY), daily-counts, day-of-week, heatmap, station-profile, month-on-month, school-holiday-effect
 - [x] Speed: snapshot, trend, roads
@@ -101,10 +119,11 @@ Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline 
 
 ## Immediate next steps
 
-1. **Fresh SCATS data** — download latest from VIC portal for clean post-crisis analysis
-2. **Deployment planning** — VPS ($6–10/month) for API + DB + pollers; Cloudflare Pages for frontend (OPEN-004)
-3. **Postcode history chart** — needs accumulated daily fuel snapshots before meaningful
-4. **Speed trend visualisation** — Bluetooth archive growing, chart auto-renders
+1. **Deploy to public URL** — VPS (Hetzner CX22, ~$6/mo) for API + DB + pollers; Cloudflare Pages for frontend; Cloudflare proxy for caching + rate limiting + HTTPS (OPEN-004)
+2. **Rate limiting** — Cloudflare free tier or FastAPI `slowapi` middleware (#1 from deployment audit)
+3. **Fresh SCATS data** — download latest from VIC portal for clean post-crisis analysis
+4. **Drop `hourly_counts` from live DB** — once summary tables validated in production, archive raw to Parquet and drop from live DB to shrink from 1.7 GB to ~200 MB
+5. **Postcode history chart** — needs accumulated daily fuel snapshots before meaningful
 
 ---
 
@@ -141,14 +160,15 @@ Vite requires the `/tmp/amip-frontend` symlink due to space in project folder na
 
 ## How Claude should behave at this stage
 
-- **Dashboard is live** with 6 tabs, ~16 components. Don't rebuild existing components unless asked.
-- **Metro core filter** (P75+ stations, ~967) is used on Monitor, daily counts, and Analysis tabs. Patterns tab uses full network.
-- **Victoria-only focus.** NSW data retained but not queried or displayed.
+- **Dashboard is deployment-ready** with 7 tabs, ~17 components. Don't rebuild existing components unless asked.
+- **Summary tables** are the primary data source for API queries. Raw `hourly_counts` stays as fallback. `weekday-drift` and `station-profile` still query raw.
+- **Metro core filter** (P75+ stations, ~967) is materialized as a permanent table, refreshed daily.
+- **Victoria-only focus.** NSW data removed.
 - **Bluetooth poller** is running — speed data accumulating in speed_observations.
-- **Daily refresh** handles all fuel/price data automatically.
+- **Daily refresh** handles fuel/price data, aviation, metro core refresh, summary append, and backup automatically.
 - **Vite workaround:** always start from `/tmp/amip-frontend` symlink.
 - **Ask before building** — confirm approach before creating new files or modules.
-- **DB is compacted** — 1.7GB. Old 7.7GB file and parquet export still on disk (not yet deleted).
+- **DB is 1.7GB** but API only reads ~790K summary rows. Raw data archived to Parquet (410 MB) and DuckDB backups (2 copies).
 
 ---
 

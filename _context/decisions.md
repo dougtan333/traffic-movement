@@ -244,6 +244,70 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
+### DEC-024 — Materialize metro core stations as permanent table
+**Decision:** Replace the per-request `CREATE TEMP TABLE metro_core_stations` (which scanned the full 73M-row hourly_counts table on every API call) with a permanent DuckDB table materialized by `scripts/materialize_metro_core.py`. The script runs as the first job in `daily_refresh.py`. API endpoints now join against the permanent table directly; `create_metro_core_table()` removed from `api/db.py` and all 8 call sites (7 in traffic.py, 1 in monitor.py). Replaced with `get_metro_core_count()` which reads the row count from the permanent table.
+**Rationale:** The temp table approach was the single biggest scalability weakness before going live — every page load that touched Monitor, Analysis, or weekly trend endpoints triggered a full-table scan of the largest table in the database. Materializing once daily is sufficient because the station cohort only changes when new baseline data arrives. The 967-station count is stable.
+**Ruled out:** (a) In-memory cache in the API process — would break if multiple workers are used and adds process-state complexity. (b) DuckDB persistent view — views don't cache results, so the scan would still run per-query.
+**Files changed:** `api/db.py`, `api/routes/traffic.py`, `api/routes/monitor.py`, `scripts/materialize_metro_core.py` (new), `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
+---
+
+### DEC-025 — Rewrite event-impact as single-pass query
+**Decision:** Replaced the N+1 query pattern in `/api/traffic/event-impact` with a single-pass approach: one SQL query computes daily avg-per-station across all dates, then Python loops over events and filters the in-memory dict (~700 rows) for event windows and baseline comparisons. Previously, each event triggered a full CTE scan of the 73M-row hourly_counts table.
+**Rationale:** The old approach ran the same massive daily aggregation N times (once per calendar event). With 11 events that's 11 full table scans per request. The new approach runs 1 scan and does the window/baseline logic in Python with dict lookups — dropping response time from multi-second to ~1s. Baseline logic also improved: now uses exact same-day-of-week matches at 1–5 week offsets rather than a date-range filter, which is a cleaner day-of-week control.
+**Ruled out:** (a) Single SQL query with window functions joining events to daily — achievable but harder to read and debug than the hybrid approach, with negligible performance difference since the daily result set is small. (b) Precomputing event impact offline — unnecessary given the 1s response time.
+**Files changed:** `api/routes/traffic.py` (event-impact endpoint)
+**Status:** Confirmed ✅
+
+---
+
+### DEC-026 — Env-driven CORS origins and API URL
+**Decision:** CORS origins in `api/main.py` now read from the `CORS_ORIGINS` env var (comma-separated), falling back to localhost dev defaults if unset. Frontend already had `VITE_API_URL` with a localhost fallback in `constants/index.js`; added `frontend/.env` (dev defaults) and `frontend/.env.example` (template for production). Added `CORS_ORIGINS` documentation to root `.env`. No code changes needed at deploy time — just set the two env vars for the target environment.
+**Rationale:** Hardcoded localhost origins in CORS and the frontend API URL were a deploy blocker. Env vars let the same codebase run in dev and production without code edits. The fallback-to-localhost pattern means local dev continues to work with zero config.
+**Ruled out:** (a) `allow_origins=["*"]` — too permissive for a public API. (b) Separate config files per environment — env vars are simpler and standard for containerised deploys.
+**Files changed:** `api/main.py`, `.env`, `frontend/.env` (new), `frontend/.env.example` (new)
+**Status:** Confirmed ✅
+
+---
+
+### DEC-027 — Parameterize all user-input SQL interpolation
+**Decision:** Replaced all f-string interpolation of user-supplied query parameters with `?` parameterized queries across all API routes. Affected endpoints: `hourly-profile` (year), `daily-counts` (date_from/date_to), `heatmap` (weeks), `weekly-trend` (weeks LIMIT), `calendar-events` (date_from/date_to × 3 queries), `monitor` baseline (BASELINE_START/END), `fuel/price-chain` (months × 2 queries). For INTERVAL expressions where DuckDB doesn't support `?`, added `_weeks_ago()` and `_months_ago()` helpers that compute the cutoff date in Python. Remaining f-strings in the codebase only interpolate safe constants (`VIC_FILTER`) or programmatic clause builders that themselves use `?` params.
+**Rationale:** Even with read-only connections, interpolating request strings into SQL is a bad pattern to take live. The read-only flag is a DuckDB connection setting, not a security boundary — and defence in depth is the right approach for a public URL. Parameterized queries also give DuckDB better query plan caching.
+**Ruled out:** (a) Leave as-is since connection is read-only — insufficient for a public API. (b) Input validation regex on date strings — defence in depth, not a replacement for parameterization.
+**Files changed:** `api/routes/traffic.py`, `api/routes/monitor.py`, `api/routes/fuel.py`
+**Status:** Confirmed ✅
+
+---
+
+### DEC-028 — Production hardening: error handling, logging, validation, backups
+**Decision:** Four pre-deployment fixes applied in one batch:
+1. **API error handling + logging** (`api/main.py`): Added Python `logging` with structured format, request logging middleware (method, path, status, duration ms), and a global exception handler that returns clean JSON instead of stack traces. Debug detail gated behind `AMIP_DEBUG` env var.
+2. **Startup validation** (`api/main.py`): On import, verifies DB file exists, connects, and checks for required tables (`hourly_counts`, `stations`, `metro_core_stations`, `calendar`). Fails fast with a clear error message if anything is missing.
+3. **React ErrorBoundary** (`frontend/src/components/ErrorBoundary.jsx`, `main.jsx`): Class component wrapping `<App>` that catches unhandled render errors and shows a "something went wrong" fallback with a refresh button instead of a white screen.
+4. **Database backup** (`scripts/backup_db.py`, added to `daily_refresh.py`): Timestamped file copy of `amip.duckdb` to `db/backups/`, configurable retention (default 7), runs as the last daily refresh job. Safe to run while API and Bluetooth poller are running.
+**Rationale:** These are architecture-independent pre-deployment essentials — needed regardless of hosting choice. Addresses traps #7, #11, #18, #19 from the deployment audit.
+**Files changed:** `api/main.py`, `frontend/src/main.jsx`, `frontend/src/components/ErrorBoundary.jsx` (new), `scripts/backup_db.py` (new), `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
+---
+
+### DEC-029 — Pre-aggregated summary tables replace hourly_counts for dashboard queries
+**Decision:** Built two summary tables and rewired 11 API endpoints to query them instead of the 73M-row `hourly_counts` table:
+- `daily_station_summary` (770K rows): per-station daily totals for metro core. Serves: weekly-trend, daily-counts, month-on-month, school-holiday-effect, peak-days, event-impact, weekday-drift (no — stays raw, needs hourly grain), monitor (weekly trend + baseline), fuel/traffic-overlay.
+- `hourly_city_summary` (19K rows): all-station hourly city-level averages. Serves: hourly-profile, hourly-profile-multi, day-of-week, heatmap.
+- `weekday-drift` and `station-profile` remain on raw `hourly_counts` (need hourly business-hours filter and per-station detail respectively).
+- Monitor freshness check rewired from `hourly_counts` to `daily_station_summary`.
+- `build_summaries.py` created with `--append` mode for incremental daily updates, added to `daily_refresh.py` as job #5.
+- `run_script()` in `daily_refresh.py` updated to accept optional `args` parameter.
+**Rationale:** 73M-row scans were 0.4–3s per request — not viable for a public URL. Summary tables reduce scan to 790K rows (93x reduction). Side-by-side testing showed 301/301 exact matches before rewiring. Response times dropped to 23–50ms for most endpoints (13x–77x faster).
+**Safety net:** Raw `hourly_counts` remains in the live DB untouched. Full DuckDB backups in `db/backups/`. All 73M raw rows archived to compressed Parquet in `db/archive/` (410 MB). Any endpoint can be reverted to raw queries individually.
+**Ruled out:** (a) Dropping `hourly_counts` immediately — premature, want to validate in production first. (b) Summary tables only (no raw fallback) — too risky for a first deployment. (c) Precomputing business-hours column for weekday-drift — would add complexity; 1.1s response on raw is acceptable for now.
+**Files changed:** `api/routes/traffic.py`, `api/routes/monitor.py`, `api/routes/fuel.py`, `scripts/build_summaries.py` (new), `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
+---
+
 ### OPEN-008 — Airservices Australia flight-level data subscription
 **Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
 **Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient

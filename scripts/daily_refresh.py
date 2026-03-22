@@ -52,7 +52,7 @@ def log(msg):
     print(f"[{ts}] {msg}")
 
 
-def run_script(name, description):
+def run_script(name, description, args=None):
     """Run a Python script and report success/failure."""
     script = SCRIPTS_DIR / name
     if not script.exists():
@@ -60,9 +60,12 @@ def run_script(name, description):
         return False
 
     log(f"  Running {description}...")
+    cmd = [sys.executable, str(script)]
+    if args:
+        cmd.extend(args)
     try:
         result = subprocess.run(
-            [sys.executable, str(script)],
+            cmd,
             cwd=str(PROJECT_ROOT),
             capture_output=True, text=True, timeout=300,
         )
@@ -94,6 +97,12 @@ def refresh_all():
 
     results = {}
 
+    # 0. Materialize metro core stations (must run before API serves requests)
+    results["metro_core"] = run_script(
+        "materialize_metro_core.py",
+        "Metro core station cohort (P75+ baseline)"
+    )
+
     # 1. Retail fuel prices
     results["retail_fuel"] = run_script(
         "poll_fuel_prices.py",
@@ -117,6 +126,19 @@ def refresh_all():
     results["aviation"] = run_script(
         "ingest_aviation.py",
         "BITRE aviation data (airports, routes, OTP)"
+    )
+
+    # 5. Append new days to summary tables (after any data ingestion)
+    results["summaries"] = run_script(
+        "build_summaries.py",
+        "Summary tables (append new days)",
+        args=["--append"]
+    )
+
+    # 6. Database backup — runs last, after all data updates
+    results["backup"] = run_script(
+        "backup_db.py",
+        "Database backup (timestamped copy)"
     )
 
     # Summary

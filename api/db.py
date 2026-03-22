@@ -20,28 +20,9 @@ def get_connection() -> duckdb.DuckDBPyConnection:
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-def create_metro_core_table(con: duckdb.DuckDBPyConnection) -> int:
-    """Create a temp table of metro core stations (P75+ avg daily volume
-    from the Feb 2026 baseline period). Returns the station count."""
-    con.execute(f"""
-        CREATE OR REPLACE TEMP TABLE metro_core_stations AS
-        SELECT station_id, avg_daily FROM (
-            SELECT station_id,
-                   sum(vehicle_count)::bigint / count(DISTINCT CAST(ts_hour AS DATE)) as avg_daily
-            FROM hourly_counts h
-            WHERE h.state = 'VIC' AND ISODOW(CAST(ts_hour AS DATE)) <= 5
-              AND CAST(ts_hour AS DATE) BETWEEN '{BASELINE_START}' AND '{BASELINE_END}'
-            GROUP BY station_id
-        )
-        WHERE avg_daily >= (
-            SELECT percentile_cont(0.75) WITHIN GROUP (ORDER BY avg_daily) FROM (
-                SELECT station_id,
-                       sum(vehicle_count)::bigint / count(DISTINCT CAST(ts_hour AS DATE)) as avg_daily
-                FROM hourly_counts h
-                WHERE h.state = 'VIC' AND ISODOW(CAST(ts_hour AS DATE)) <= 5
-                  AND CAST(ts_hour AS DATE) BETWEEN '{BASELINE_START}' AND '{BASELINE_END}'
-                GROUP BY station_id
-            )
-        )
-    """)
+def get_metro_core_count(con: duckdb.DuckDBPyConnection) -> int:
+    """Return the number of metro core stations from the permanent table.
+    The table is materialized by scripts/materialize_metro_core.py and
+    refreshed daily via daily_refresh.py. This replaces the old
+    create_metro_core_table() which rebuilt the cohort on every request."""
     return con.execute("SELECT count(*) FROM metro_core_stations").fetchone()[0]
