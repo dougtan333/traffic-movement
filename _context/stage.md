@@ -149,7 +149,7 @@ Vite requires the `/tmp/amip-frontend` symlink due to space in project folder na
 | AUD/USD (RBA) | `daily_refresh.py` | Daily (automated) |
 | AIP Terminal Gate | `daily_refresh.py` | Daily (automated, may timeout) |
 | Aviation (BITRE) | `daily_refresh.py` | Daily (automated, monthly source, ~10s) |
-| SCATS vehicle counts | `ingest_vic_counts.py` | Monthly (manual download) |
+| SCATS vehicle counts | `refresh_scats.py` via `daily_refresh.py` | Daily (automated, monthly source) |
 | Bluetooth speed | `poll_bluetooth.py` | Continuous (every 5 min) |
 | TIRTL | `ingest_tirtl.py` | As released (manual) |
 | Fuel stations | `ingest_fuel_stations.py` | Monthly (manual) |

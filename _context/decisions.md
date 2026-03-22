@@ -321,6 +321,22 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
+### DEC-031 — Automated incremental SCATS refresh
+**Decision:** Created `scripts/refresh_scats.py` for automated incremental SCATS traffic data updates, replacing the manual download-and-full-reload process (`ingest_vic_counts.py` which destructively DELETEs all VIC data before reloading). The new script:
+1. Scrapes the VIC open data portal page to find the latest monthly ZIP URL
+2. Downloads to `data_vic_new/scats_staging/` (skips if already cached)
+3. Extracts only CSVs for dates after the latest date in DB (no full extraction)
+4. INSERTs new hourly rows incrementally (no DELETE, no full reload)
+5. Optionally runs `build_summaries.py --append` to update summary tables
+6. Re-exports the current year's Parquet archive
+Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--skip-summaries` flag so summaries are handled centrally at step #5. The portal publishes monthly ZIPs updated throughout the month, so daily runs pick up new days as they appear.
+**Rationale:** The old `ingest_vic_counts.py` deletes all VIC rows then reloads from whatever directories exist — destructive and manual. For hosting, data refresh must be automated, incremental, and safe. First run successfully ingested 7 new days (March 14–20, 642K rows) bringing the Monitor tab from "Week of 9 Mar" to "Week of 16 Mar".
+**Ruled out:** (a) Keeping manual download + full reload — not viable for automated hosting. (b) Building a CKAN API integration — the portal doesn't expose a usable API for ZIP resources; page scraping is simpler and the URL pattern is stable.
+**Files changed:** `scripts/refresh_scats.py` (new), `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
+---
+
 ### OPEN-008 — Airservices Australia flight-level data subscription
 **Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
 **Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient

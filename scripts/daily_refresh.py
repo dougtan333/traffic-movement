@@ -21,15 +21,15 @@ Data sources refreshed:
   - Wholesale:    AIP Terminal Gate Prices (scraped, may be slow)
 
 Not refreshed here (separate cadence):
-  - VIC SCATS counts: monthly ZIP download (run ingest_vic_counts.py)
   - Bluetooth speed:  continuous poller (poll_bluetooth.py --loop)
   - TIRTL data:       as released (run ingest_tirtl.py)
   - Fuel stations:    monthly (run ingest_fuel_stations.py)
   - Calendar/events:  as needed (run populate_calendar.py)
   - PT/Fleet data:    annual (run ingest_vic_transport.py)
 
-Monthly refresh (runs daily but only picks up new data when BITRE publishes):
-  - Aviation:  BITRE airport traffic, routes, OTP (ingest_aviation.py)
+Monthly refresh (runs daily but only picks up new data when source publishes):
+  - SCATS:    VIC traffic signal volume data (refresh_scats.py, incremental)
+  - Aviation: BITRE airport traffic, routes, OTP (ingest_aviation.py)
 """
 
 import os
@@ -126,6 +126,15 @@ def refresh_all():
     results["aviation"] = run_script(
         "ingest_aviation.py",
         "BITRE aviation data (airports, routes, OTP)"
+    )
+
+    # 4a. SCATS traffic counts — incremental download + ingest from VIC portal
+    #     Skips summaries (handled by step 5). Portal publishes monthly ZIPs
+    #     updated throughout the month; safe to run daily.
+    results["scats"] = run_script(
+        "refresh_scats.py",
+        "SCATS traffic counts (incremental)",
+        args=["--skip-summaries"]
     )
 
     # 5. Append new days to summary tables (after any data ingestion)
