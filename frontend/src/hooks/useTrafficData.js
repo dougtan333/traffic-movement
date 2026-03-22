@@ -15,10 +15,12 @@ export function useTrafficData(endpoint, params = {}) {
   const [error, setError] = useState(null);
 
   const paramString = new URLSearchParams(params).toString();
-  const url = `${API_URL}${endpoint}${paramString ? '?' + paramString : ''}`;
+  const url = endpoint ? `${API_URL}${endpoint}${paramString ? '?' + paramString : ''}` : null;
 
   useEffect(() => {
+    if (!url) { setLoading(false); return; }
     let cancelled = false;
+    setLoading(true);
 
     fetch(url)
       .then(res => {

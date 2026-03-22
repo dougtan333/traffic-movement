@@ -1,0 +1,40 @@
+.weekday-drift {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.drift-commentary {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 64ch;
+}
+.drift-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.drift-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.8125rem;
+}
+.drift-day {
+  font-weight: 600;
+  width: 2.5rem;
+}
+.drift-values {
+  color: var(--color-text-muted);
+  flex: 1;
+}
+.drift-pct {
+  font-weight: 600;
+  min-width: 3.5rem;
+  text-align: right;
+}
+.drift-pct.up { color: #c4342d; }
+.drift-pct.down { color: #2A9D8F; }

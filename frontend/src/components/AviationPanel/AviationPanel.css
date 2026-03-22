@@ -1,0 +1,117 @@
+/* AviationPanel — summary cards, tables, OTP leaderboard */
+
+.avi-summary-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.avi-card {
+  flex: 1 1 160px;
+  min-width: 160px;
+  background: var(--card-bg, #fafafa);
+  border-radius: 8px;
+  padding: 14px 16px;
+  border-top: 3px solid #ccc;
+}
+
+.avi-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+}
+
+.avi-card-period {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.avi-card-total {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+
+.avi-card-split {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.avi-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.avi-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.avi-badge.up { background: #e6f4ea; color: #137333; }
+.avi-badge.down { background: #fce8e6; color: #c5221f; }
+
+/* Tables */
+.avi-table-wrap {
+  overflow-x: auto;
+}
+
+.avi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.avi-table th {
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 2px solid #ddd;
+  white-space: nowrap;
+}
+.avi-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+}
+.avi-table tbody tr:hover {
+  background: #f5f5f5;
+}
+.avi-rank {
+  color: #999;
+  font-size: 11px;
+  width: 28px;
+}
+.avi-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* OTP leaderboard */
+.avi-otp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 768px) {
+  .avi-otp-grid { grid-template-columns: 1fr; }
+}
+.avi-otp-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.avi-otp-heading.best { color: #137333; }
+.avi-otp-heading.worst { color: #c5221f; }
+
+.avi-table-compact td, .avi-table-compact th {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.avi-good { color: #137333; font-weight: 600; }
+.avi-bad { color: #c5221f; font-weight: 600; }

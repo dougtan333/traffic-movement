@@ -1,0 +1,50 @@
+.event-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.event-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem;
+  background: var(--color-surface);
+}
+.event-card.down { border-left: 3px solid #2A9D8F; }
+.event-card.up { border-left: 3px solid #c4342d; }
+.event-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+.event-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.event-date {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+}
+.event-card-body {
+  display: flex;
+  gap: 0.75rem;
+}
+.event-metric {
+  display: flex;
+  flex-direction: column;
+}
+.event-metric .metric-label {
+  font-size: 0.625rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.event-metric .metric-value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.event-metric.impact .metric-value {
+  font-size: 1rem;
+}
+.metric-value.negative { color: #2A9D8F; }
+.metric-value.positive { color: #c4342d; }

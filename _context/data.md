@@ -338,6 +338,45 @@ Ingestion scripts separate data loading from transformation. To switch to API:
 
 ---
 
+## Aviation Data (BITRE — data.gov.au)
+
+### Sources (all CC-BY 3.0 AU, free CSV download, no auth)
+
+| Dataset | URL | Granularity | History |
+|---------|-----|-------------|---------|
+| Airport Traffic (pax + aircraft) | data.gov.au `mon_pax_web.csv` + `mon_acm_web.csv` | Monthly, top 20 airports | 1985–Oct 2025 |
+| Domestic Routes (city pairs) | data.gov.au `dom_citypairs_web.csv` | Monthly, ~40 route pairs | 1984–Dec 2025 |
+| On-Time Performance | data.gov.au `otp_time_series_web.csv` | Monthly, per route × airline | 2004–Jan 2026 |
+
+### Ingested scope (DEC-023)
+
+- **Airports:** ADELAIDE, BRISBANE, MELBOURNE, PERTH, SYDNEY
+- **Date range:** 2024 onwards only (keeps DB skinny)
+- **OTP filter:** "All Airlines" aggregates only
+- **Estimated rows:** ~120 (airport_monthly) + ~480 (domestic_routes) + ~960 (aviation_otp) ≈ 1,600 total
+
+### DuckDB tables
+
+| Table | Grain | Key columns |
+|-------|-------|-------------|
+| `airport_monthly` | airport × year × month | dom/int pax in/out/total, dom/int acm in/out/total |
+| `domestic_routes` | city1 × city2 × year × month | passenger_trips, aircraft_trips, load_factor_pct, distance_km, rpks, asks, seats |
+| `aviation_otp` | route × year × month | sectors_scheduled/flown, cancellations, departures/arrivals on_time/delayed |
+
+### Key column notes
+
+- Airport names in BITRE data are UPPERCASE city names (MELBOURNE, not Tullamarine)
+- Routes are bidirectional in OTP (Melbourne-Sydney and Sydney-Melbourne are separate rows)
+- Routes in domestic_routes are alphabetically ordered city pairs (ADELAIDE-MELBOURNE, not MELBOURNE-ADELAIDE)
+- `RPKs` = Revenue Passenger Kilometres, `ASKs` = Available Seat Kilometres
+- Load factor = RPKs/ASKs × 100 (already calculated in source)
+
+### Refresh cadence
+
+BITRE updates monthly, typically with ~2 month lag (e.g., Oct 2025 data available Feb 2026). Add `ingest_aviation.py` to the monthly refresh cycle alongside SCATS counts.
+
+---
+
 ## Data research priorities (next actions)
 
 1. ✅ ~~Identify and verify traffic data sources for NSW and VIC~~ — Done
@@ -347,7 +386,8 @@ Ingestion scripts separate data loading from transformation. To switch to API:
 5. ❌ TIRTL dataset not yet available for download — revisit when published
 6. Build API-based incremental refresh for both states
 7. Set up Bluetooth polling script for VIC speed data
+8. ✅ Aviation data sources identified and script built — `scripts/ingest_aviation.py`
 
 ---
 
-*See also: `decisions.md` DEC-007 (data source decision), `conventions.md` (query file standards), `memory.md` (current priorities)*
+*See also: `decisions.md` DEC-023 (aviation tab scope), `conventions.md` (query file standards), `memory.md` (current priorities)*

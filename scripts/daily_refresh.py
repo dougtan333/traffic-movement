@@ -27,6 +27,9 @@ Not refreshed here (separate cadence):
   - Fuel stations:    monthly (run ingest_fuel_stations.py)
   - Calendar/events:  as needed (run populate_calendar.py)
   - PT/Fleet data:    annual (run ingest_vic_transport.py)
+
+Monthly refresh (runs daily but only picks up new data when BITRE publishes):
+  - Aviation:  BITRE airport traffic, routes, OTP (ingest_aviation.py)
 """
 
 import os
@@ -107,6 +110,13 @@ def refresh_all():
     results["wholesale"] = run_script(
         "ingest_wholesale_prices.py",
         "AIP Terminal Gate Prices (wholesale)"
+    )
+
+    # 4. Aviation — BITRE airport traffic, routes, OTP
+    #    Monthly source, but safe to run daily (idempotent full refresh, ~10s)
+    results["aviation"] = run_script(
+        "ingest_aviation.py",
+        "BITRE aviation data (airports, routes, OTP)"
     )
 
     # Summary

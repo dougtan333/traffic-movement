@@ -89,3 +89,28 @@
 .dot-free { background: #2A9D8F; }
 .dot-mod  { background: #E9C46A; }
 .dot-slow { background: #c4342d; }
+
+
+/* Time range buttons */
+.speed-range-btns {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+.speed-range-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #555;
+}
+.speed-range-btn.active {
+  background: #1B3A5C;
+  color: #fff;
+  border-color: #1B3A5C;
+}
+.speed-range-btn:hover:not(.active) {
+  background: #f0f0f0;
+}

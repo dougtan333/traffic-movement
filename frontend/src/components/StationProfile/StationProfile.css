@@ -29,3 +29,49 @@
   line-height: 1;
 }
 .station-close:hover { color: var(--color-text); }
+
+/* Nearby fuel stations */
+.nearby-fuel {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+.nearby-fuel-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: var(--color-text-muted);
+}
+.fuel-station-card {
+  padding: 0.5rem 0;
+}
+.fuel-station-card + .fuel-station-card {
+  border-top: 1px solid var(--color-border);
+}
+.fuel-station-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+.fuel-station-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.fuel-station-dist {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.fuel-station-prices {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.fuel-price-tag {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.fuel-price-tag strong {
+  color: var(--color-text);
+}

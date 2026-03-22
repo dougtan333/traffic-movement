@@ -5,15 +5,15 @@
 
 ## Current stage
 
-**Dashboard live with metro core filtering, YoY comparison, daily automated data refresh, and compacted database. Victoria-only.**
+**Dashboard live with metro core filtering, YoY comparison, daily automated data refresh, aviation tab, and compacted database. Victoria-only ground transport + 5-city national aviation.**
 
-Last updated: 21 March 2026
+Last updated: 22 March 2026
 
 ---
 
 ## What this stage is about
 
-Full-stack local dashboard with 6 navigable tabs, ~16 components. Data pipeline covers road traffic (SCATS counts filtered to metro core P75+ stations), real-time speed (Bluetooth polling), public transport patronage, vehicle fleet composition, and fuel prices (retail, wholesale, international crude). Daily refresh script automates all fuel/price data updates. Database compacted from 7.7GB to 1.7GB via parquet export/reimport — viable for VPS hosting.
+Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline covers road traffic (SCATS counts filtered to metro core P75+ stations), real-time speed (Bluetooth polling with 12h/24h/3d/7d time range selector), public transport patronage, vehicle fleet composition, fuel prices (retail, wholesale, international crude), and aviation (BITRE monthly airport traffic for 5 capital cities). Daily refresh script automates all fuel/price and aviation data updates. Database compacted from 7.7GB to 1.7GB via parquet export/reimport — viable for VPS hosting.
 
 ---
 
@@ -65,20 +65,37 @@ Full-stack local dashboard with 6 navigable tabs, ~16 components. Data pipeline 
 - [x] PKs restored on speed_observations, bluetooth_routes, bluetooth_links
 - [x] UNIQUE index on fuel_prices for INSERT OR IGNORE support
 
+### Aviation tab (DEC-023)
+- [x] BITRE data: airport traffic, domestic routes, on-time performance (data.gov.au CSVs)
+- [x] 3 DuckDB tables: airport_monthly (105 rows), domestic_routes (1,716), aviation_otp (2,874)
+- [x] Scope: 5 capital-city airports, 2024+, All Airlines OTP aggregates only
+- [x] Ingestion script: `scripts/ingest_aviation.py` (idempotent full refresh, ~10s)
+- [x] 7 API endpoints under `/api/aviation/` (passengers, yoy, summary, routes, top, otp, otp/summary)
+- [x] Frontend: AviationPanel with summary cards, monthly trend chart, top routes table, OTP leaderboard
+- [x] Added to `daily_refresh.py` as job #4 — runs automatically at 7am AEST
+
+### Speed trend enhancement
+- [x] Time range selector: 12h, 24h, 3d, 7d buttons on speed panel
+- [x] API limit extended from 48h to 720h (30 days)
+- [x] Chart height increases for longer timeframes, x-axis shows day names
+- [x] All historical bluetooth data retained permanently (no purging)
+
 ### API (FastAPI, 20+ endpoints)
 - [x] Traffic: hourly-profile, hourly-profile-multi (with day_type param), weekly-trend (with YoY), daily-counts, day-of-week, heatmap, station-profile, month-on-month, school-holiday-effect
 - [x] Speed: snapshot, trend, roads
 - [x] Transport: pt-monthly, pt-daytype, fleet
 - [x] Fuel: state-average, by-postcode, postcodes, heatmap, price-chain, traffic-overlay
+- [x] Aviation: passengers, passengers/yoy, passengers/summary, routes, routes/top, otp, otp/summary
 - [x] Stations, monitor (metro core), calendar-events, health
 
-### Frontend (React + Vite + Recharts, 6 tabs, ~16 components)
-- [x] **Monitor tab:** Metric cards (metro core), weekly trend (with YoY line), daily bars (metro core), speed panel (Bluetooth)
+### Frontend (React + Vite + Recharts, 7 tabs, ~17 components)
+- [x] **Monitor tab:** Metric cards (metro core), weekly trend (with YoY line), daily bars (metro core), speed panel (Bluetooth, 12h/24h/3d/7d selector)
 - [x] **Patterns tab:** Hour × day-of-week heatmap, hourly profile (multi-year, weekday/Sat/Sun toggle), day-of-week bars
 - [x] **Fuel tab:** State average, oil-to-pump price chain, traffic vs fuel overlay, cheapest fuel by postcode
 - [x] **Transport tab:** PT patronage stacked area, vehicle mix (TIRTL), speed profile, fleet fuel-type breakdown, daily patronage by day type
 - [x] **Explorer tab:** Leaflet station map, click-to-profile drilldown
 - [x] **Analysis tab:** Month-on-month (metro core), school holiday effect (metro core)
+- [x] **Aviation tab:** 5-airport summary cards (with MoM/YoY badges), monthly passenger trend chart, top 15 domestic routes table, OTP leaderboard (best/worst split)
 
 ---
 
@@ -112,6 +129,7 @@ Vite requires the `/tmp/amip-frontend` symlink due to space in project folder na
 | Brent crude (EIA) | `daily_refresh.py` | Daily (automated) |
 | AUD/USD (RBA) | `daily_refresh.py` | Daily (automated) |
 | AIP Terminal Gate | `daily_refresh.py` | Daily (automated, may timeout) |
+| Aviation (BITRE) | `daily_refresh.py` | Daily (automated, monthly source, ~10s) |
 | SCATS vehicle counts | `ingest_vic_counts.py` | Monthly (manual download) |
 | Bluetooth speed | `poll_bluetooth.py` | Continuous (every 5 min) |
 | TIRTL | `ingest_tirtl.py` | As released (manual) |

@@ -123,7 +123,7 @@ def speed_snapshot(
 
 @router.get("/trend")
 def speed_trend(
-    hours: int = Query(4, ge=1, le=48),
+    hours: int = Query(4, ge=1, le=720),
     road: Optional[str] = Query(None, description="Filter to a specific road"),
     freeways: bool = Query(False, description="Show freeways only"),
 ):

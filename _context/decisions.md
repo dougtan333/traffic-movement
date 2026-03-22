@@ -234,6 +234,25 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
+### DEC-023 — Aviation tab: BITRE data, all 5 capitals, 2024+ only
+**Decision:** New Aviation tab using three BITRE open datasets from data.gov.au (CC-BY 3.0 AU): airport traffic (passengers + aircraft movements), domestic route stats, and on-time performance. Scope: all five capital-city airports (Melbourne, Sydney, Brisbane, Perth, Adelaide). Data filtered to 2024 onwards to keep the DB skinny (~1,700 rows total). Monthly granularity — no public Australian source provides daily passenger counts. OTP filtered to "All Airlines" aggregates only (no per-airline breakdown). Passengers and aircraft movements merged into a single `airport_monthly` table.
+**Rationale:** BITRE is the authoritative free source. data.gov.au provides CSV downloads (no auth, no API key). Covering all 5 cities adds negligible data volume since the BITRE file already contains them. 2024+ cutoff keeps hosting costs minimal while giving ~2 years of trend data. Merging pax + aircraft into one table avoids a join on the same grain. "All Airlines" OTP keeps rows manageable while still showing route-level reliability.
+**Ruled out:** Melbourne-only (data already includes all airports at no extra cost). Daily/weekly granularity (not available publicly — Airservices has hourly flight-level data but requires subscription request, logged as future enrichment). Per-airline OTP breakdowns (3-4x more rows for limited analytical value in V1). BITRE XLSX files (data.gov.au has equivalent CSVs, easier to parse).
+**Tables:** `airport_monthly`, `domestic_routes`, `aviation_otp`
+**Script:** `scripts/ingest_aviation.py`
+**Status:** Confirmed ✅
+
+---
+
+### OPEN-008 — Airservices Australia flight-level data subscription
+**Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
+**Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient
+**Dependencies:** Pricing/access terms unclear — may be free for non-commercial use
+**Trigger:** If monthly granularity proves insufficient for the Aviation tab analytics
+**Status:** Open ⬜
+
+---
+
 When adding a new entry, use this format:
 
 ```

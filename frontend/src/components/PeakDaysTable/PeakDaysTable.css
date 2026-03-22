@@ -1,0 +1,55 @@
+.peak-days-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+.peak-col-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.peak-col-title.busiest { color: #c4342d; }
+.peak-col-title.quietest { color: #2A9D8F; }
+.peak-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  table-layout: fixed;
+}
+.peak-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.peak-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.peak-table .rank {
+  color: var(--color-text-muted);
+  width: 1.5rem;
+}
+.peak-table .context {
+  color: var(--color-text-muted);
+  font-style: italic;
+  max-width: 10rem;
+}
+.bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.bar {
+  height: 10px;
+  border-radius: 2px;
+  min-width: 2px;
+}
+.busiest-bar { background: #c4342d; opacity: 0.5; }
+.quietest-bar { background: #2A9D8F; opacity: 0.5; }

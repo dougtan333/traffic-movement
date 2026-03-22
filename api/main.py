@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from api.db import get_connection
-from api.routes import traffic, stations, monitor, speed, transport, tirtl, fuel
+from api.routes import traffic, stations, monitor, speed, transport, tirtl, fuel, aviation
 
 app = FastAPI(
     title="AMIP API",
@@ -25,7 +25,7 @@ app = FastAPI(
 # CORS — allow Vite dev server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -38,6 +38,7 @@ app.include_router(speed.router)
 app.include_router(transport.router)
 app.include_router(tirtl.router)
 app.include_router(fuel.router)
+app.include_router(aviation.router)
 
 
 @app.get("/api/health")

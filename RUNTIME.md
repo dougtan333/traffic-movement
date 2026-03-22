@@ -75,6 +75,24 @@ python3 scripts/weekly_refresh.py
 ```
 Prints a comparison report and saves JSON to `reports/weekly_monitor_YYYY-MM-DD.json`.
 
+### Daily automated refresh (fuel + aviation)
+
+Runs automatically at 7am AEST when started with `--loop`:
+```bash
+PYTHONUNBUFFERED=1 nohup python3 scripts/daily_refresh.py --loop > logs/daily_refresh.log 2>&1 &
+```
+Refreshes:
+1. Retail fuel prices (Servo Saver)
+2. Brent crude + AUD/USD (EIA + RBA)
+3. AIP wholesale prices
+4. Aviation data — BITRE airport traffic, routes, OTP (monthly source, safe to run daily — idempotent full refresh ~10s)
+
+### Aviation data (BITRE) — runs via daily_refresh, or manually:
+```bash
+python3 scripts/ingest_aviation.py
+```
+Downloads 4 CSVs from data.gov.au (no auth), filters to 2024+ and 5 capital-city airports, loads into `airport_monthly`, `domestic_routes`, `aviation_otp`. BITRE publishes new months with ~2 month lag.
+
 ## Full rebuild from scratch
 
 If you need to rebuild the database from raw CSV files:
@@ -96,6 +114,9 @@ python3 scripts/ingest_vic_counts.py      # ~73M rows, ~15 minutes (27 months)
 
 # 4. Populate calendar
 python3 scripts/populate_calendar.py      # holidays, school terms, events
+
+# 5. Aviation data (BITRE)
+python3 scripts/ingest_aviation.py        # ~4,700 rows, ~10 seconds
 ```
 
 ## Environment
@@ -146,6 +167,7 @@ Vite 8 has a `$RefreshReg$` error with `@vitejs/plugin-react` v6. Pinned to Vite
 | `traffic_signal_volume_data_*/` | Raw VIC SCATS monthly CSVs (~3.5 GB total) |
 | `Traffic_Lights.csv` | VIC signal site coordinates |
 | `reports/` | Weekly monitor JSON output |
+| `data/aviation/` | Cached BITRE CSV downloads (mon_pax, mon_acm, routes, otp) |
 
 
 ---

@@ -352,3 +352,192 @@ def calendar_events(
         "school_holidays": school_ranges,
         "events": [{"date": str(e[0]), "name": e[1]} for e in events],
     }
+
+
+@router.get("/peak-days")
+def peak_days(top_n: int = Query(20)):
+    """
+    Rank the busiest and quietest weekdays across metro core stations.
+    Returns top N busiest + top N quietest, annotated with calendar context.
+    """
+    con = get_connection()
+    create_metro_core_table(con)
+    rows = con.execute(f"""
+        WITH daily AS (
+            SELECT CAST(h.ts_hour AS DATE) as day,
+                   (SUM(h.vehicle_count)::DOUBLE / COUNT(DISTINCT h.station_id))::INT as avg_per_station
+            FROM hourly_counts h
+            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
+            WHERE {VIC_FILTER}
+            GROUP BY 1
+        )
+        SELECT d.day, d.avg_per_station,
+               DAYNAME(d.day) as dow,
+               c.is_weekday,
+               c.is_public_holiday_vic,
+               c.is_school_holiday_vic,
+               c.event_name
+        FROM daily d
+        LEFT JOIN calendar c ON d.day = c.date
+        WHERE c.is_weekday = true
+        ORDER BY d.avg_per_station DESC
+    """).fetchall()
+    con.close()
+
+    def to_dict(r):
+        context = []
+        if r[4]: context.append('public holiday')
+        if r[5]: context.append('school holiday')
+        if r[6]: context.append(r[6])
+        return {
+            "date": str(r[0]),
+            "dow": r[2],
+            "avg_per_station": r[1],
+            "context": ', '.join(context) if context else None,
+        }
+
+    busiest = [to_dict(r) for r in rows[:top_n]]
+    quietest = [to_dict(r) for r in rows[-top_n:]]
+    quietest.reverse()
+
+    return {
+        "city": "melbourne",
+        "busiest": busiest,
+        "quietest": quietest,
+    }
+
+
+@router.get("/event-impact")
+def event_impact():
+    """
+    Compare traffic around named calendar events vs a 4-week baseline.
+    For each event: avg traffic on the event day + surrounding 2 days,
+    vs avg of the same day-of-week over the 4 weeks before/after.
+    """
+    con = get_connection()
+    create_metro_core_table(con)
+
+    events = con.execute("""
+        SELECT date, event_name FROM calendar
+        WHERE event_name IS NOT NULL
+          AND date >= '2024-01-01' AND date <= CURRENT_DATE
+        ORDER BY date
+    """).fetchall()
+
+    results = []
+    for ev_date, ev_name in events:
+        rows = con.execute(f"""
+            WITH daily AS (
+                SELECT CAST(h.ts_hour AS DATE) as day,
+                       (SUM(h.vehicle_count)::DOUBLE / COUNT(DISTINCT h.station_id))::INT as avg_per_station
+                FROM hourly_counts h
+                INNER JOIN metro_core_stations m ON h.station_id = m.station_id
+                WHERE {VIC_FILTER}
+                GROUP BY 1
+            ),
+            event_window AS (
+                SELECT day, avg_per_station, 'event' as period
+                FROM daily
+                WHERE day BETWEEN ?::DATE - 1 AND ?::DATE + 1
+            ),
+            baseline_before AS (
+                SELECT day, avg_per_station, 'baseline' as period
+                FROM daily
+                WHERE day BETWEEN ?::DATE - 35 AND ?::DATE - 7
+                  AND ISODOW(day) = ISODOW(?::DATE)
+            ),
+            baseline_after AS (
+                SELECT day, avg_per_station, 'baseline' as period
+                FROM daily
+                WHERE day BETWEEN ?::DATE + 7 AND ?::DATE + 35
+                  AND ISODOW(day) = ISODOW(?::DATE)
+            )
+            SELECT period, AVG(avg_per_station)::INT as avg_val, COUNT(*) as days
+            FROM (
+                SELECT * FROM event_window
+                UNION ALL SELECT * FROM baseline_before
+                UNION ALL SELECT * FROM baseline_after
+            )
+            GROUP BY period
+        """, [ev_date, ev_date, ev_date, ev_date, ev_date, ev_date, ev_date, ev_date]).fetchall()
+
+        event_avg = None
+        baseline_avg = None
+        for r in rows:
+            if r[0] == 'event': event_avg = r[1]
+            elif r[0] == 'baseline': baseline_avg = r[1]
+
+        if event_avg and baseline_avg:
+            pct = round((event_avg - baseline_avg) / baseline_avg * 100, 1)
+        else:
+            pct = None
+
+        results.append({
+            "date": str(ev_date),
+            "event": ev_name,
+            "event_avg": event_avg,
+            "baseline_avg": baseline_avg,
+            "impact_pct": pct,
+        })
+
+    return {"city": "melbourne", "events": results}
+
+
+@router.get("/weekday-drift")
+def weekday_drift():
+    """
+    Compare the day-of-week traffic profile between 2024 and 2025.
+    Shows whether Fridays are getting quieter, Mondays shifting, etc.
+    Business hours (7am-6pm) only, metro core stations.
+    """
+    con = get_connection()
+    create_metro_core_table(con)
+    rows = con.execute(f"""
+        WITH daily AS (
+            SELECT CAST(h.ts_hour AS DATE) as day,
+                   ISODOW(CAST(h.ts_hour AS DATE)) as dow,
+                   EXTRACT(YEAR FROM h.ts_hour)::INT as yr,
+                   (SUM(h.vehicle_count)::DOUBLE / COUNT(DISTINCT h.station_id))::INT as avg_per_station
+            FROM hourly_counts h
+            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
+            JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
+            WHERE {VIC_FILTER}
+              AND h.hour_of_day BETWEEN 7 AND 17
+              AND c.is_weekday = true
+              AND c.is_public_holiday_vic = false
+              AND EXTRACT(YEAR FROM h.ts_hour) IN (2024, 2025)
+            GROUP BY 1, 2, 3
+        )
+        SELECT yr, dow, AVG(avg_per_station)::INT as avg_traffic,
+               COUNT(DISTINCT day) as days_sampled
+        FROM daily
+        GROUP BY yr, dow
+        ORDER BY yr, dow
+    """).fetchall()
+    con.close()
+
+    DOW_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+    data_2024 = {}
+    data_2025 = {}
+    for r in rows:
+        entry = {"dow": r[1], "day": DOW_NAMES[r[1]] if r[1] <= 5 else None, "avg": r[2], "days": r[3]}
+        if r[0] == 2024:
+            data_2024[r[1]] = entry
+        else:
+            data_2025[r[1]] = entry
+
+    combined = []
+    for dow in range(1, 6):
+        d24 = data_2024.get(dow, {})
+        d25 = data_2025.get(dow, {})
+        avg_24 = d24.get('avg', 0)
+        avg_25 = d25.get('avg', 0)
+        pct = round((avg_25 - avg_24) / avg_24 * 100, 1) if avg_24 else None
+        combined.append({
+            "day": DOW_NAMES[dow],
+            "avg_2024": avg_24,
+            "avg_2025": avg_25,
+            "change_pct": pct,
+        })
+
+    return {"city": "melbourne", "data": combined}

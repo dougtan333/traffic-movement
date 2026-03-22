@@ -246,3 +246,62 @@ def traffic_overlay():
             for r in rows
         ],
     }
+
+
+@router.get("/nearby")
+def nearby_fuel(lat: float = Query(...), lon: float = Query(...), limit: int = Query(3)):
+    """
+    Find the nearest fuel stations to a given lat/lon and return
+    their latest U91 price. Uses simple Euclidean distance on lat/lon
+    (good enough at city scale for ranking).
+    """
+    con = get_connection()
+    rows = con.execute("""
+        WITH latest AS (
+            SELECT MAX(snapshot_date) as d FROM fuel_prices
+        ),
+        nearby AS (
+            SELECT
+                s.station_id,
+                s.name,
+                s.brand_name,
+                s.address,
+                s.suburb,
+                s.latitude,
+                s.longitude,
+                -- Approx distance in km (crude Euclidean, fine for ranking within a city)
+                SQRT(POW((s.latitude - ?) * 111.32, 2) + POW((s.longitude - ?) * 111.32 * COS(RADIANS(?)), 2)) as dist_km
+            FROM fuel_stations s
+            WHERE s.latitude IS NOT NULL
+            ORDER BY dist_km
+            LIMIT ?
+        )
+        SELECT
+            n.station_id, n.name, n.brand_name, n.address, n.suburb,
+            n.latitude, n.longitude, ROUND(n.dist_km, 1) as dist_km,
+            p.fuel_type, p.price_cpl
+        FROM nearby n
+        LEFT JOIN fuel_prices p
+            ON n.station_id = p.station_id
+            AND p.snapshot_date = (SELECT d FROM latest)
+            AND p.price_cpl > 0 AND p.price_cpl < 500
+            AND p.is_available = true
+        ORDER BY n.dist_km, p.fuel_type
+    """, [lat, lon, lat, limit]).fetchall()
+    con.close()
+
+    # Group by station
+    stations = {}
+    for r in rows:
+        sid = r[0]
+        if sid not in stations:
+            stations[sid] = {
+                "station_id": sid, "name": r[1], "brand": r[2],
+                "address": r[3], "suburb": r[4],
+                "lat": r[5], "lon": r[6], "dist_km": float(r[7]),
+                "prices": {},
+            }
+        if r[8]:
+            stations[sid]["prices"][r[8]] = float(r[9])
+
+    return {"stations": list(stations.values())}
