@@ -308,6 +308,19 @@ When a decision is made — in conversation, in planning, or mid-build — add a
 
 ---
 
+### DEC-030 — Complete hourly_counts independence: weekday-drift and station-profile
+**Decision:** Removed the last two API endpoint dependencies on the raw `hourly_counts` table:
+1. **weekday-drift**: Added `biz_hours_total` column to `daily_station_summary` (sum of hours 7–17 per station per day). Endpoint rewired to query this column instead of filtering `hourly_counts` by `hour_of_day BETWEEN 7 AND 17`. Response time: 51ms (was 1.1s). Values match raw within 0.01% (integer rounding at different aggregation stages).
+2. **station-profile**: Rewired to read from Parquet archive files via `read_parquet('db/archive/hourly_counts_{year}.parquet')` instead of the `hourly_counts` table. Exact match with raw. Response time: 88ms. `ARCHIVE_DIR` exported from `api/db.py`.
+3. **health endpoint**: Updated to query `daily_station_summary` row count and max date instead of `hourly_counts`.
+4. **startup validation**: Now checks for `daily_station_summary` and `hourly_city_summary` instead of `hourly_counts`.
+**Rationale:** With all endpoints off `hourly_counts`, the 73M-row table can be dropped from the live DB when ready, shrinking it from ~1.7 GB to ~200 MB. The Parquet archive (410 MB) retains full per-station hourly access for Explorer tab and any future reprocessing.
+**Ruled out:** (a) Building a per-station hourly summary table — would be ~75M rows, same size as raw. (b) Leaving station-profile on raw — works fine but creates a dependency that blocks dropping the table.
+**Files changed:** `api/main.py`, `api/db.py`, `api/routes/traffic.py`, `scripts/build_summaries.py`
+**Status:** Confirmed ✅
+
+---
+
 ### OPEN-008 — Airservices Australia flight-level data subscription
 **Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
 **Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient

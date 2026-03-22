@@ -9,6 +9,7 @@ from pathlib import Path
 import duckdb
 
 DB_PATH = Path(__file__).resolve().parent.parent / "db" / "amip.duckdb"
+ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "db" / "archive"
 
 
 BASELINE_START = "2026-02-01"

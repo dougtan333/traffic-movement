@@ -7,7 +7,7 @@ Victoria only. Weekly trend uses metro core stations (P75+ daily volume).
 from fastapi import APIRouter, Query
 from typing import Optional
 from datetime import date, timedelta
-from api.db import get_connection, get_metro_core_count
+from api.db import get_connection, get_metro_core_count, ARCHIVE_DIR
 
 router = APIRouter()
 
@@ -201,11 +201,10 @@ def station_profile(station_id: str = Query(...), year: int = Query(2025)):
         return {"error": f"Station {station_id} not found"}
     rows = con.execute("""
         SELECT hour_of_day, avg(vehicle_count)::int as avg_count, count(*) as sample_hours
-        FROM hourly_counts
+        FROM read_parquet(?)
         WHERE station_id = ? AND is_weekday = true
-          AND ts_hour >= ?::TIMESTAMP AND ts_hour < ?::TIMESTAMP
         GROUP BY hour_of_day ORDER BY hour_of_day
-    """, [station_id, f"{year}-01-01", f"{year + 1}-01-01"]).fetchall()
+    """, [str(ARCHIVE_DIR / f"hourly_counts_{year}.parquet"), station_id]).fetchall()
     con.close()
     return {
         "station": {"id": meta[0], "road_name": meta[1], "suburb": meta[2],
@@ -461,20 +460,17 @@ def weekday_drift():
     Business hours (7am-6pm) only, metro core stations.
     """
     con = get_connection()
-    rows = con.execute(f"""
+    rows = con.execute("""
         WITH daily AS (
-            SELECT CAST(h.ts_hour AS DATE) as day,
-                   ISODOW(CAST(h.ts_hour AS DATE)) as dow,
-                   EXTRACT(YEAR FROM h.ts_hour)::INT as yr,
-                   (SUM(h.vehicle_count)::DOUBLE / COUNT(DISTINCT h.station_id))::INT as avg_per_station
-            FROM hourly_counts h
-            INNER JOIN metro_core_stations m ON h.station_id = m.station_id
-            JOIN calendar c ON CAST(h.ts_hour AS DATE) = c.date
-            WHERE {VIC_FILTER}
-              AND h.hour_of_day BETWEEN 7 AND 17
-              AND c.is_weekday = true
+            SELECT d.day,
+                   d.day_of_week as dow,
+                   d.year as yr,
+                   (SUM(d.biz_hours_total)::DOUBLE / COUNT(DISTINCT d.station_id))::INT as avg_per_station
+            FROM daily_station_summary d
+            JOIN calendar c ON d.day = c.date
+            WHERE d.is_weekday = true
               AND c.is_public_holiday_vic = false
-              AND EXTRACT(YEAR FROM h.ts_hour) IN (2024, 2025)
+              AND d.year IN (2024, 2025)
             GROUP BY 1, 2, 3
         )
         SELECT yr, dow, AVG(avg_per_station)::INT as avg_traffic,

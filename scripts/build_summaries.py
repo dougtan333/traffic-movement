@@ -49,6 +49,7 @@ def build_daily_station(con, append=False):
         SELECT h.station_id,
                CAST(h.ts_hour AS DATE) as day,
                SUM(h.vehicle_count)::INT as daily_total,
+               SUM(CASE WHEN h.hour_of_day BETWEEN 7 AND 17 THEN h.vehicle_count ELSE 0 END)::INT as biz_hours_total,
                ISODOW(CAST(h.ts_hour AS DATE)) as day_of_week,
                CASE WHEN ISODOW(CAST(h.ts_hour AS DATE)) <= 5 THEN true ELSE false END as is_weekday,
                EXTRACT(YEAR FROM CAST(h.ts_hour AS DATE))::INT as year,

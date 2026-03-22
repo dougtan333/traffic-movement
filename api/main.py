@@ -47,7 +47,8 @@ def _validate_db():
     except Exception as e:
         raise RuntimeError(f"Cannot connect to database: {e}")
 
-    required = ["hourly_counts", "stations", "metro_core_stations", "calendar"]
+    required = ["daily_station_summary", "hourly_city_summary", "stations",
+                 "metro_core_stations", "calendar"]
     missing = [t for t in required if t not in tables]
     if missing:
         raise RuntimeError(
@@ -123,14 +124,14 @@ def health():
     con = get_connection()
     counts = con.execute("""
         SELECT
-            (SELECT count(*) FROM hourly_counts) as hourly_rows,
+            (SELECT count(*) FROM daily_station_summary) as summary_rows,
             (SELECT count(*) FROM stations) as station_rows,
-            (SELECT max(ts_hour)::DATE FROM hourly_counts) as latest_data
+            (SELECT max(day) FROM daily_station_summary) as latest_data
     """).fetchone()
     con.close()
     return {
         "status": "ok",
-        "hourly_rows": counts[0],
+        "summary_rows": counts[0],
         "stations": counts[1],
         "latest_data": str(counts[2]),
     }
