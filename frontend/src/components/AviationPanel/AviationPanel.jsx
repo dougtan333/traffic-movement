@@ -66,7 +66,10 @@ export default function AviationPanel() {
     <>
       {/* ── Summary cards ──────────────────────────────────── */}
       <section className="panel">
-        <h3 className="panel-title">Airport passengers — latest month</h3>
+        <h3 className="panel-title">
+          Airport passengers
+          {summaryData?.data?.[0] && ` — ${MONTH_NAMES[summaryData.data[0].month]} ${summaryData.data[0].year}`}
+        </h3>
         <p className="panel-note">Monthly passenger movements at Australia's five major capital-city airports. Source: BITRE Airport Traffic Data (data.gov.au).</p>
         {summaryLoading ? <div className="chart-loading">Loading…</div> : (
           <div className="avi-summary-cards">
