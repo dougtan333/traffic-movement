@@ -1,5 +1,10 @@
+# AMIP Python dependencies
+# Tested on: Python 3.12 (target), also works on 3.11, 3.13, 3.14
+# Platform: x86_64 and aarch64 (ARM) Linux — all packages have pre-built wheels
+
 duckdb>=1.1.0
-requests>=2.31.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
+requests>=2.31.0
 pyproj>=3.6.0
+openpyxl>=3.1.0
