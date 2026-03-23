@@ -48,17 +48,43 @@ export default function SpeedPanel() {
   const freeMin = thresholds?.free_flow_min_kmh ?? 40;
   const slowMax = thresholds?.slow_max_kmh ?? 20;
   const refSpeed = thresholds?.ref_speed_kmh ?? 80;
-  const total = summary.slow_links + summary.moderate_links + summary.free_flow_links;
-  const slowPct = total ? Math.round((summary.slow_links / total) * 100) : 0;
-  const modPct = total ? Math.round((summary.moderate_links / total) * 100) : 0;
+
+  // Use trend distribution for the selected period, fallback to snapshot (latest interval)
+  const dist = trend?.distribution || summary;
+  const total = (dist.slow_links || 0) + (dist.moderate_links || 0) + (dist.free_flow_links || 0);
+  const slowPct = total ? Math.round((dist.slow_links / total) * 100) : 0;
+  const modPct = total ? Math.round((dist.moderate_links / total) * 100) : 0;
   const freePct = total ? 100 - slowPct - modPct : 0;
 
-  const trendData = (trend?.data || []).map(d => ({
-    ...d,
-    time: trendHours <= 24
-      ? new Date(d.ts).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
-      : new Date(d.ts).toLocaleDateString('en-AU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
-  }));
+  const trendData = (trend?.data || []).map(d => {
+    const dt = new Date(d.ts);
+    let time;
+    if (trendHours <= 24) {
+      time = dt.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      // Round to nearest hour, show day above time
+      const rounded = new Date(dt);
+      rounded.setMinutes(dt.getMinutes() >= 30 ? 60 : 0, 0, 0);
+      const day = rounded.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
+      const hr = rounded.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+      time = `${day}\n${hr}`;
+    }
+    return { ...d, time };
+  });
+
+  // Custom X-axis tick for multi-line labels (day + time) on 3d/7d views
+  const MultiLineTick = ({ x, y, payload }) => {
+    const parts = (payload.value || '').split('\n');
+    if (parts.length === 1) {
+      return <text x={x} y={y + 10} textAnchor="middle" fontSize={10} fill="#666">{parts[0]}</text>;
+    }
+    return (
+      <g>
+        <text x={x} y={y + 8} textAnchor="middle" fontSize={9} fill="#999">{parts[0]}</text>
+        <text x={x} y={y + 20} textAnchor="middle" fontSize={10} fill="#666">{parts[1]}</text>
+      </g>
+    );
+  };
 
   // Group roads for dropdown: freeways first, then arterials
   const fwys = roads.filter(r => r.is_freeway);
@@ -138,10 +164,15 @@ export default function SpeedPanel() {
 
       {trendData.length > 1 && (
         <div className="chart-container">
-          <ResponsiveContainer width="100%" height={trendHours > 24 ? 260 : 180}>
-            <AreaChart data={trendData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+          <ResponsiveContainer width="100%" height={trendHours > 24 ? 280 : 180}>
+            <AreaChart data={trendData} margin={{ top: 5, right: 20, bottom: trendHours > 24 ? 20 : 5, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-              <XAxis dataKey="time" tick={{ fontSize: 10 }} interval={trendHours <= 24 ? 'preserveStartEnd' : Math.floor(trendData.length / 12)} />
+              <XAxis
+                dataKey="time"
+                tick={trendHours > 24 ? <MultiLineTick /> : { fontSize: 10 }}
+                interval={trendHours <= 24 ? 'preserveStartEnd' : Math.floor(trendData.length / 8)}
+                height={trendHours > 24 ? 40 : 20}
+              />
               <YAxis domain={[0, 'auto']} tick={{ fontSize: 11 }} label={{ value: 'km/h', angle: -90, position: 'insideLeft', fontSize: 11 }} />
               <Tooltip formatter={(v) => [`${v} km/h`, 'Avg speed']} />
               <Area type="monotone" dataKey="avg_speed" stroke="#2A9D8F" fill="#2A9D8F" fillOpacity={0.15} strokeWidth={2} />

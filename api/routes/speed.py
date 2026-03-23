@@ -127,29 +127,60 @@ def speed_trend(
     road: Optional[str] = Query(None, description="Filter to a specific road"),
     freeways: bool = Query(False, description="Show freeways only"),
 ):
-    """Speed trend over the last N hours — optionally filtered."""
+    """Speed trend over the last N hours — optionally filtered.
+    Includes period-level distribution summary for the selected duration."""
     con = get_connection()
     filt, filt_params = _link_filter(road, freeways)
     join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
+
+    # Dynamic thresholds for this filter
+    ref_row = con.execute(f"""
+        SELECT percentile_disc(0.85) WITHIN GROUP (ORDER BY so.speed_kmh) as p85
+        FROM speed_observations so {join}
+        WHERE {filt}
+    """, filt_params).fetchone()
+    ref_speed = ref_row[0] if ref_row and ref_row[0] else 80
+    free_threshold = round(ref_speed * 0.75)
+    slow_threshold = round(ref_speed * 0.40)
 
     rows = con.execute(f"""
         SELECT
             so.ts_interval,
             avg(so.speed_kmh)::int as avg_speed,
             count(*) as links_reporting,
-            count(*) FILTER (WHERE so.speed_kmh < 20) as slow_links
+            count(*) FILTER (WHERE so.speed_kmh < ?) as slow_links
         FROM speed_observations so {join}
         WHERE so.ts_interval >= (SELECT max(ts_interval) FROM speed_observations) - INTERVAL '{hours} hours'
           AND {filt}
         GROUP BY so.ts_interval
         ORDER BY so.ts_interval
-    """, filt_params).fetchall()
+    """, [slow_threshold] + filt_params).fetchall()
+
+    # Period-level distribution across the full selected duration
+    dist = con.execute(f"""
+        SELECT
+            count(*) as total_links,
+            avg(so.speed_kmh)::int as avg_speed,
+            count(*) FILTER (WHERE so.speed_kmh < ?) as slow_links,
+            count(*) FILTER (WHERE so.speed_kmh >= ? AND so.speed_kmh < ?) as moderate_links,
+            count(*) FILTER (WHERE so.speed_kmh >= ?) as free_flow_links
+        FROM speed_observations so {join}
+        WHERE so.ts_interval >= (SELECT max(ts_interval) FROM speed_observations) - INTERVAL '{hours} hours'
+          AND {filt}
+    """, [slow_threshold, slow_threshold, free_threshold, free_threshold] + filt_params).fetchone()
     con.close()
 
     return {
         "hours": hours,
         "filter": road or ("Freeways" if freeways else "All links"),
         "intervals": len(rows),
+        "distribution": {
+            "total_links": dist[0],
+            "avg_speed_kmh": dist[1],
+            "slow_links": dist[2],
+            "moderate_links": dist[3],
+            "free_flow_links": dist[4],
+        },
         "data": [
             {"ts": str(r[0]), "avg_speed": r[1], "links": r[2], "slow_links": r[3]}
             for r in rows
