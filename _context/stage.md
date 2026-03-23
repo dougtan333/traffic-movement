@@ -122,7 +122,7 @@ Full-stack local dashboard with 7 navigable tabs, ~17 components. Data pipeline 
 1. **Deploy to public URL** — VPS (Hetzner CX22, ~$6/mo) for API + DB + pollers; Cloudflare Pages for frontend; Cloudflare proxy for caching + rate limiting + HTTPS (OPEN-004)
 2. **Rate limiting** — Cloudflare free tier or FastAPI `slowapi` middleware (#1 from deployment audit)
 3. **Fresh SCATS data** — download latest from VIC portal for clean post-crisis analysis
-4. **Drop `hourly_counts` from live DB** — once summary tables validated in production, archive raw to Parquet and drop from live DB to shrink from 1.7 GB to ~200 MB
+4. **Clean up old DB files** — `amip_old.duckdb` (7.7 GB) and `amip_pre_drop.duckdb` (1.7 GB) can be removed to reclaim 9.4 GB
 5. **Postcode history chart** — needs accumulated daily fuel snapshots before meaningful
 
 ---
@@ -168,7 +168,7 @@ Vite requires the `/tmp/amip-frontend` symlink due to space in project folder na
 - **Daily refresh** handles fuel/price data, aviation, metro core refresh, summary append, and backup automatically.
 - **Vite workaround:** always start from `/tmp/amip-frontend` symlink.
 - **Ask before building** — confirm approach before creating new files or modules.
-- **DB is 1.7GB** but API only reads ~790K summary rows. Raw data archived to Parquet (410 MB) and DuckDB backups (2 copies).
+- **DB is 47 MB** (hourly_counts dropped, DEC-032). API reads ~777K summary rows. Raw data archived to Parquet (411 MB) and DuckDB backups.
 
 ---
 

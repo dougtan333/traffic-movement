@@ -129,12 +129,10 @@ def refresh_all():
     )
 
     # 4a. SCATS traffic counts — incremental download + ingest from VIC portal
-    #     Skips summaries (handled by step 5). Portal publishes monthly ZIPs
-    #     updated throughout the month; safe to run daily.
+    #     Handles its own summary + Parquet updates internally.
     results["scats"] = run_script(
         "refresh_scats.py",
-        "SCATS traffic counts (incremental)",
-        args=["--skip-summaries"]
+        "SCATS traffic counts (incremental)"
     )
 
     # 5. Append new days to summary tables (after any data ingestion)

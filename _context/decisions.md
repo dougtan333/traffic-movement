@@ -337,6 +337,16 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 
 ---
 
+### DEC-032 — Drop hourly_counts from live DB, compact 1,786 MB → 47 MB
+**Decision:** Dropped the `hourly_counts` table (74M rows) from the live DuckDB file. Compacted via export-all-tables-to-fresh-DB approach (DuckDB VACUUM doesn't reclaim disk space). DB file went from 1,786 MB to 47 MB (97.4% reduction). Updated `refresh_scats.py` to work without `hourly_counts` — new flow processes CSVs into a temp table, then appends directly to `daily_station_summary`, `hourly_city_summary`, and the Parquet archive in a single pass. Removed the now-unnecessary `--skip-summaries` flag and `update_parquet_archive()` function. `daily_refresh.py` updated to call `refresh_scats.py` without args.
+**Rationale:** All API endpoints were already independent of `hourly_counts` (DEC-029/030). The 74M-row table was dead weight — 97% of the DB file size, never queried. The Parquet archive (411 MB in `db/archive/`) retains full per-station hourly access for station-profile (Explorer tab) and any future reprocessing. DuckDB backups in `db/backups/` include pre-drop copies.
+**Safety net:** Parquet archive (3 files, 411 MB total, all 74M raw rows). 4 timestamped DuckDB backups including the 1.7 GB pre-drop version. `amip_pre_drop.duckdb` (1.7 GB) on disk as an additional fallback.
+**Ruled out:** (a) Keeping `hourly_counts` for "just in case" — it was 97% of the DB and zero endpoints queried it. The Parquet archive provides identical data access via `read_parquet()`. (b) VACUUM instead of export/reimport — DuckDB VACUUM marks pages as free but doesn't shrink the file.
+**Files changed:** `scripts/refresh_scats.py`, `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
+---
+
 ### OPEN-008 — Airservices Australia flight-level data subscription
 **Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
 **Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient

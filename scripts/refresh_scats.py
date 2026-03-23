@@ -124,14 +124,14 @@ def extract_new_csvs(zip_path: Path, latest_db_date: date) -> Path:
 
 
 def ingest_new_days(extract_dir: Path) -> int:
-    """Ingest extracted CSVs into hourly_counts. Returns rows inserted."""
-    # Find the CSV files (may be in a subdirectory from ZIP structure)
+    """Ingest extracted CSVs: build hourly data in temp tables, then
+    append directly to summary tables and update Parquet archive.
+    Does NOT require the hourly_counts table to exist."""
     csv_files = list(extract_dir.rglob("VSDATA_*.csv"))
     if not csv_files:
         print("  No new CSVs to ingest")
         return 0
 
-    # Use the directory containing the CSVs for the glob
     csv_dir = csv_files[0].parent
 
     con = duckdb.connect(str(DB_PATH), read_only=False)
@@ -158,14 +158,14 @@ def ingest_new_days(extract_dir: Path) -> int:
             GROUP BY NB_SCATS_SITE, QT_INTERVAL_COUNT
         """)
 
-        # Unpivot hours and join to stations — plain INSERT (no duplicates since we only extract new days)
+        # Unpivot into full hourly rows in a temp table
         values_list = ", ".join(f"({h}, h{h:02d})" for h in range(24))
         con.execute(f"""
-            INSERT INTO hourly_counts
+            CREATE OR REPLACE TEMP TABLE new_hourly AS
             SELECT
                 s.station_id,
                 CAST(obs_date AS TIMESTAMP) + INTERVAL (hr.hour_num) HOUR AS ts_hour,
-                hr.vehicle_count::INTEGER,
+                hr.vehicle_count::INTEGER AS vehicle_count,
                 'VIC' AS state,
                 ISODOW(CAST(obs_date AS DATE))::TINYINT AS day_of_week,
                 hr.hour_num::TINYINT AS hour_of_day,
@@ -177,22 +177,75 @@ def ingest_new_days(extract_dir: Path) -> int:
             WHERE hr.vehicle_count > 0
         """)
 
-        # Count what we inserted
         date_range = con.execute("SELECT min(obs_date), max(obs_date) FROM hourly_by_site").fetchone()
         if date_range[0] is None:
             con.close()
             return 0
-        count = con.execute(f"""
-            SELECT count(*) FROM hourly_counts
-            WHERE state = 'VIC'
-              AND CAST(ts_hour AS DATE) BETWEEN '{date_range[0]}' AND '{date_range[1]}'
-        """).fetchone()[0]
+
+        total_rows = con.execute("SELECT count(*) FROM new_hourly").fetchone()[0]
+        print(f"  Processed {total_rows:,} hourly rows for {date_range[0]} to {date_range[1]}")
+
+        # Append to daily_station_summary (metro core only)
+        con.execute("""
+            INSERT INTO daily_station_summary
+            SELECT nh.station_id,
+                   CAST(nh.ts_hour AS DATE) as day,
+                   SUM(nh.vehicle_count)::INT as daily_total,
+                   SUM(CASE WHEN nh.hour_of_day BETWEEN 7 AND 17 THEN nh.vehicle_count ELSE 0 END)::INT as biz_hours_total,
+                   ISODOW(CAST(nh.ts_hour AS DATE)) as day_of_week,
+                   CASE WHEN ISODOW(CAST(nh.ts_hour AS DATE)) <= 5 THEN true ELSE false END as is_weekday,
+                   EXTRACT(YEAR FROM CAST(nh.ts_hour AS DATE))::INT as year,
+                   EXTRACT(MONTH FROM CAST(nh.ts_hour AS DATE))::INT as month
+            FROM new_hourly nh
+            INNER JOIN metro_core_stations m ON nh.station_id = m.station_id
+            GROUP BY nh.station_id, CAST(nh.ts_hour AS DATE)
+        """)
+        ds_count = con.execute("SELECT count(*) FROM daily_station_summary").fetchone()[0]
+        ds_latest = con.execute("SELECT max(day) FROM daily_station_summary").fetchone()[0]
+        print(f"  daily_station_summary: {ds_count:,} rows, latest = {ds_latest}")
+
+        # Append to hourly_city_summary (all stations)
+        con.execute("""
+            INSERT INTO hourly_city_summary
+            SELECT CAST(nh.ts_hour AS DATE) as day,
+                   nh.hour_of_day,
+                   AVG(nh.vehicle_count)::INT as avg_count,
+                   SUM(nh.vehicle_count)::BIGINT as total_count,
+                   COUNT(DISTINCT nh.station_id)::INT as stations,
+                   ISODOW(CAST(nh.ts_hour AS DATE)) as day_of_week,
+                   CASE WHEN ISODOW(CAST(nh.ts_hour AS DATE)) <= 5 THEN true ELSE false END as is_weekday,
+                   EXTRACT(YEAR FROM CAST(nh.ts_hour AS DATE))::INT as year
+            FROM new_hourly nh
+            GROUP BY CAST(nh.ts_hour AS DATE), nh.hour_of_day
+        """)
+        hc_count = con.execute("SELECT count(*) FROM hourly_city_summary").fetchone()[0]
+        print(f"  hourly_city_summary: {hc_count:,} rows")
+
+        # Append new hourly rows to Parquet archive (current year)
+        year = date.today().year
+        archive_path = ARCHIVE_DIR / f"hourly_counts_{year}.parquet"
+        if archive_path.exists():
+            # Merge: read existing + new, write combined
+            con.execute(f"""
+                COPY (
+                    SELECT * FROM read_parquet('{archive_path}')
+                    UNION ALL
+                    SELECT * FROM new_hourly WHERE EXTRACT(YEAR FROM ts_hour) = {year}
+                ) TO '{archive_path}' (FORMAT PARQUET, COMPRESSION ZSTD)
+            """)
+        else:
+            con.execute(f"""
+                COPY (SELECT * FROM new_hourly WHERE EXTRACT(YEAR FROM ts_hour) = {year})
+                TO '{archive_path}' (FORMAT PARQUET, COMPRESSION ZSTD)
+            """)
+        pq_size = os.path.getsize(str(archive_path)) / (1024*1024)
+        print(f"  Parquet archive: {archive_path.name} ({pq_size:.0f} MB)")
 
         con.execute("CHECKPOINT")
-        print(f"  Ingested {count:,} rows for {date_range[0]} to {date_range[1]}")
+        print(f"  Ingested {total_rows:,} rows for {date_range[0]} to {date_range[1]}")
     finally:
         con.close()
-    return count
+    return total_rows
 
 
 def update_parquet_archive(year: int = None):
@@ -212,7 +265,7 @@ def update_parquet_archive(year: int = None):
     print(f"  Parquet archive updated: {out.name} ({size_mb:.0f} MB)")
 
 
-def refresh(skip_download=False, skip_summaries=False):
+def refresh(skip_download=False):
     """Full incremental refresh: download, extract new days, ingest, update summaries."""
     print("SCATS Incremental Refresh")
     print("=" * 50)
@@ -239,26 +292,13 @@ def refresh(skip_download=False, skip_summaries=False):
     # 3. Extract only new days
     extract_dir = extract_new_csvs(zip_path, latest_db)
 
-    # 4. Ingest
+    # 4. Ingest — updates summaries and Parquet archive directly
     rows = ingest_new_days(extract_dir)
     if rows == 0:
         print("  No new data to ingest — DB is up to date")
         return True
 
-    # 5. Update summary tables (unless caller handles this separately)
-    if not skip_summaries:
-        print("  Updating summary tables...")
-        import subprocess
-        subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "scripts" / "build_summaries.py"), "--append"],
-            cwd=str(PROJECT_ROOT), check=True
-        )
-
-    # 6. Update Parquet archive
-    print("  Updating Parquet archive...")
-    update_parquet_archive()
-
-    # 7. Cleanup extracted CSVs
+    # 5. Cleanup extracted CSVs
     extract_dir_to_clean = STAGING_DIR / "extract"
     if extract_dir_to_clean.exists():
         shutil.rmtree(extract_dir_to_clean)
@@ -276,8 +316,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Incremental SCATS refresh")
     parser.add_argument("--skip-download", action="store_true",
                         help="Use already-downloaded ZIP in staging")
-    parser.add_argument("--skip-summaries", action="store_true",
-                        help="Skip summary table update (when called from daily_refresh)")
     args = parser.parse_args()
-    success = refresh(skip_download=args.skip_download, skip_summaries=args.skip_summaries)
+    success = refresh(skip_download=args.skip_download)
     sys.exit(0 if success else 1)
