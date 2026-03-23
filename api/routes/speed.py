@@ -123,11 +123,12 @@ def speed_snapshot(
 
 @router.get("/trend")
 def speed_trend(
-    hours: int = Query(4, ge=1, le=720),
+    hours: int = Query(24, ge=1, le=336),
     road: Optional[str] = Query(None, description="Filter to a specific road"),
     freeways: bool = Query(False, description="Show freeways only"),
 ):
-    """Speed trend over the last N hours — optionally filtered.
+    """Hourly speed trend over the last N hours — optionally filtered.
+    Data is aggregated to hourly averages. Max 336h (14 days).
     Includes period-level distribution summary for the selected duration."""
     con = get_connection()
     filt, filt_params = _link_filter(road, freeways)
@@ -143,18 +144,18 @@ def speed_trend(
     free_threshold = round(ref_speed * 0.75)
     slow_threshold = round(ref_speed * 0.40)
 
+    # Hourly aggregation — one data point per hour
     rows = con.execute(f"""
         SELECT
-            so.ts_interval,
+            date_trunc('hour', so.ts_interval) as hr,
             avg(so.speed_kmh)::int as avg_speed,
-            count(*) as links_reporting,
-            count(*) FILTER (WHERE so.speed_kmh < ?) as slow_links
+            count(DISTINCT so.route_id) as links_reporting
         FROM speed_observations so {join}
         WHERE so.ts_interval >= (SELECT max(ts_interval) FROM speed_observations) - INTERVAL '{hours} hours'
           AND {filt}
-        GROUP BY so.ts_interval
-        ORDER BY so.ts_interval
-    """, [slow_threshold] + filt_params).fetchall()
+        GROUP BY hr
+        ORDER BY hr
+    """, filt_params).fetchall()
 
     # Period-level distribution across the full selected duration
     dist = con.execute(f"""
@@ -182,7 +183,7 @@ def speed_trend(
             "free_flow_links": dist[4],
         },
         "data": [
-            {"ts": str(r[0]), "avg_speed": r[1], "links": r[2], "slow_links": r[3]}
+            {"ts": str(r[0]), "avg_speed": r[1], "links": r[2]}
             for r in rows
         ],
     }

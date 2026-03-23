@@ -115,10 +115,10 @@ export default function SpeedPanel() {
         </select>
         <div className="speed-range-btns">
           {[
-            { label: '12h', h: 12 },
             { label: '24h', h: 24 },
             { label: '3d', h: 72 },
             { label: '7d', h: 168 },
+            { label: '14d', h: 336 },
           ].map(b => (
             <button key={b.h}
               className={`speed-range-btn ${trendHours === b.h ? 'active' : ''}`}
@@ -164,7 +164,7 @@ export default function SpeedPanel() {
 
       {trendData.length > 1 && (
         <div className="chart-container">
-          <ResponsiveContainer width="100%" height={trendHours > 24 ? 280 : 180}>
+          <ResponsiveContainer width="100%" height={trendHours <= 24 ? 180 : trendHours <= 168 ? 280 : 300}>
             <AreaChart data={trendData} margin={{ top: 5, right: 20, bottom: trendHours > 24 ? 20 : 5, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
               <XAxis
