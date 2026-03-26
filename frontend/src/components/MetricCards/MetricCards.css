@@ -6,13 +6,22 @@
 }
 .metric-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 0.875rem 1rem;
+  border-top: 2.5px solid var(--color-melbourne);
+  box-shadow: var(--shadow-panel);
 }
 .metric-card.alert {
-  border-color: var(--color-danger);
-  border-width: 1.5px;
+  border-top-color: var(--color-danger);
+}
+.metric-card.card-up {
+  border-top-color: var(--color-success);
+}
+.metric-card.card-down {
+  border-top-color: var(--color-danger);
+}
+.metric-card.card-neutral {
+  border-top-color: var(--color-border-strong);
 }
 .metric-label {
   font-size: 0.6875rem;
@@ -26,6 +35,8 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.metric-value.val-up { color: var(--color-success); }
+.metric-value.val-down { color: var(--color-danger); }
 .metric-sub {
   font-size: 0.6875rem;
   color: var(--color-text-light);

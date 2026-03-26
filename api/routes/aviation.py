@@ -189,6 +189,41 @@ def routes_top():
     }
 
 
+@router.get("/routes/yoy")
+def routes_yoy():
+    """Monthly passengers per Melbourne route, with YoY comparison.
+    Returns 2024 and 2025 side by side so frontend can chart + table both years."""
+    con = get_connection()
+    rows = con.execute("""
+        WITH mel_routes AS (
+            SELECT city1, city2, year, month, passenger_trips, load_factor_pct, seats
+            FROM domestic_routes
+            WHERE city1 = 'MELBOURNE' OR city2 = 'MELBOURNE'
+        ),
+        ranked AS (
+            SELECT city1, city2, sum(passenger_trips) as total
+            FROM mel_routes GROUP BY city1, city2
+            ORDER BY total DESC LIMIT 10
+        )
+        SELECT m.city1, m.city2, m.year, m.month,
+               m.passenger_trips, m.load_factor_pct, m.seats
+        FROM mel_routes m
+        INNER JOIN ranked r ON m.city1 = r.city1 AND m.city2 = r.city2
+        ORDER BY r.total DESC, m.year, m.month
+    """).fetchall()
+    con.close()
+
+    return {
+        "data": [
+            {
+                "city1": r[0], "city2": r[1], "year": r[2], "month": r[3],
+                "passengers": r[4], "load_factor": r[5], "seats": r[6],
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.get("/otp")
 def otp(
     airport: Optional[str] = Query(None, description="Filter to routes involving this airport"),
@@ -259,4 +294,78 @@ def otp_summary():
             }
             for r in rows
         ],
+    }
+
+
+@router.get("/otp/yoy")
+def otp_yoy():
+    """Monthly on-time performance per Melbourne route, with YoY comparison.
+    Returns on-time %, cancellation %, and sector counts for 2024 vs 2025."""
+    con = get_connection()
+    rows = con.execute("""
+        WITH mel_routes AS (
+            SELECT route, departing_port, arriving_port, year, month,
+                   sectors_scheduled, sectors_flown, cancellations,
+                   arrivals_on_time, arrivals_delayed,
+                   round(arrivals_on_time * 100.0 / nullif(sectors_flown, 0), 1) as ontime_pct,
+                   round(cancellations * 100.0 / nullif(sectors_scheduled, 0), 1) as cancel_pct
+            FROM aviation_otp
+            WHERE departing_port = 'Melbourne' OR arriving_port = 'Melbourne'
+        ),
+        ranked AS (
+            SELECT route, sum(sectors_scheduled) as total
+            FROM mel_routes GROUP BY route
+            ORDER BY total DESC LIMIT 10
+        )
+        SELECT m.route, m.departing_port, m.arriving_port, m.year, m.month,
+               m.sectors_scheduled, m.sectors_flown, m.cancellations,
+               m.arrivals_on_time, m.ontime_pct, m.cancel_pct
+        FROM mel_routes m
+        INNER JOIN ranked r ON m.route = r.route
+        ORDER BY r.total DESC, m.year, m.month
+    """).fetchall()
+    con.close()
+
+    return {
+        "data": [
+            {
+                "route": r[0], "from": r[1], "to": r[2],
+                "year": r[3], "month": r[4],
+                "scheduled": r[5], "flown": r[6], "cancellations": r[7],
+                "arrivals_ontime": r[8], "ontime_pct": r[9], "cancel_pct": r[10],
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/international")
+def international():
+    """Monthly international vs domestic passengers per airport, with YoY comparison.
+    Returns dom/int split for stacked chart + international YoY table."""
+    con = get_connection()
+    rows = con.execute("""
+        SELECT a.airport, a.year, a.month,
+               a.dom_pax_total, a.int_pax_total, a.pax_total,
+               round(a.int_pax_total * 100.0 / nullif(a.pax_total, 0), 1) as int_pct,
+               b.int_pax_total as prev_year_int,
+               round((a.int_pax_total - b.int_pax_total) * 100.0
+                     / nullif(b.int_pax_total, 0), 1) as int_yoy_pct
+        FROM airport_monthly a
+        LEFT JOIN airport_monthly b
+          ON a.airport = b.airport AND a.year = b.year + 1 AND a.month = b.month
+        ORDER BY a.airport, a.year, a.month
+    """).fetchall()
+    con.close()
+
+    return {
+        "data": [
+            {
+                "airport": r[0], "year": r[1], "month": r[2],
+                "dom_pax": r[3], "int_pax": r[4], "total_pax": r[5],
+                "int_pct": r[6], "prev_year_int": r[7], "int_yoy_pct": r[8],
+            }
+            for r in rows
+        ],
+        "colours": CITY_COLOURS,
     }

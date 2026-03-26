@@ -22,7 +22,7 @@ export default function DayOfWeekChart() {
 
   return (
     <div className="chart-container">
-      <ResponsiveContainer width="100%" height={320}>
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data.data} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
           <XAxis dataKey="day" tick={{ fontSize: 12 }} />

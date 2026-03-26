@@ -26,8 +26,11 @@
   --color-warning: #a06415;
 
   /* Spacing */
-  --radius: 6px;
-  --radius-lg: 10px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  /* Elevation */
+  --shadow-panel: 0 1px 4px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.08);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -56,17 +59,15 @@ h2 {
 }
 
 h3 {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  color: var(--color-text-muted);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  color: var(--color-text);
+  letter-spacing: -0.005em;
 }
 
 .panel-note {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin: -0.25rem 0 0.75rem 0;
+  color: var(--color-text-light);
+  margin: 2px 0 0.75rem 0;
   line-height: 1.4;
-  opacity: 0.75;
 }

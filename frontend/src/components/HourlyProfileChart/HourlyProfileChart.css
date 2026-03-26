@@ -9,7 +9,7 @@
 .toggle-btn {
   padding: 0.3rem 0.75rem;
   font-size: 0.75rem;
-  border: 1px solid var(--color-border, #ddd);
+  border: 0.5px solid var(--color-border);
   background: transparent;
   color: var(--color-text-muted, #888);
   cursor: pointer;

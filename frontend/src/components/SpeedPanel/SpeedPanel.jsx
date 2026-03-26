@@ -93,7 +93,7 @@ export default function SpeedPanel() {
   return (
     <div className="speed-panel">
       <h3 className="panel-title">Live speed — Bluetooth sensors</h3>
-      <p className="panel-note">A link is the stretch of road between two Bluetooth receivers, typically on freeways and major arterials. Speed is measured from the travel time of detected Bluetooth devices passing between the pair.</p>
+      <p className="panel-note">4,711 links across freeways and arterials · speed from Bluetooth travel time between receiver pairs</p>
       <div className="speed-filter-row">
         <select
           className="speed-filter"

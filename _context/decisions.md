@@ -347,12 +347,36 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 
 ---
 
+### DEC-033 — Restore PRIMARY KEY constraints after DB compaction
+**Decision:** Recreated PRIMARY KEY constraints on `speed_observations (route_id, ts_interval)`, `bluetooth_routes (route_id)`, `bluetooth_links (link_id)`, and `tirtl_counts (ts_interval, site_id, heading, vehicle_class)`. Each table rebuilt via CREATE-INSERT-DROP-RENAME pattern. All row counts preserved (zero duplicates found).
+**Rationale:** DEC-032's export-all-to-fresh-DB compaction stripped PRIMARY KEY constraints from these four tables. The Bluetooth poller uses `INSERT OR IGNORE` which requires a UNIQUE constraint — without it, DuckDB threw `Binder Error` on every insert. The poller ran for ~27 hours (Mon 18:44 to Tue 21:35) writing 0 rows per cycle. That data window is unrecoverable.
+**Lesson:** After any DB rebuild/compaction, verify all table DDL — not just row counts. Add a startup check or post-compaction script that asserts expected PKs exist.
+**Status:** Confirmed ✅
+
+---
+
 ### OPEN-008 — Airservices Australia flight-level data subscription
 **Question:** Should we request the Airservices "Flight Summary Data" and "Airport Performance Data" products for hourly/daily flight-level detail at Melbourne, Sydney, Brisbane, Perth?
 **Options:** (a) Submit subscription request via data.airservicesaustralia.com order form, (b) Skip for now, monthly BITRE is sufficient
 **Dependencies:** Pricing/access terms unclear — may be free for non-commercial use
 **Trigger:** If monthly granularity proves insufficient for the Aviation tab analytics
 **Status:** Open ⬜
+
+---
+
+### DEC-034 — Aviation tab: Melbourne routes YoY + OTP YoY + international split
+**Decision:** Added four new sections to the Aviation tab: (1) Melbourne domestic routes YoY chart + table, (2) Melbourne OTP YoY chart + table with on-time/cancellation toggle, (3) stacked area dom/int passenger split with airport toggle, (4) international passengers YoY table for all 5 airports. Three new API endpoints: `/api/aviation/routes/yoy`, `/api/aviation/otp/yoy`, `/api/aviation/international`. All use existing `domestic_routes`, `aviation_otp`, and `airport_monthly` tables — no new ingestion needed.
+**Rationale:** Adds time-series depth to the Aviation tab beyond static aggregates. YoY tables with month columns and % change badges match the analytical pattern used elsewhere in the dashboard. International split addresses the "overseas trips" question using data already in the DB.
+**Status:** Confirmed ✅
+
+---
+
+### DEC-035 — No Flightradar24 integration for now
+**Decision:** Deferred FR24 flight data integration. Not building a scraping-based poller (unofficial API or direct requests). The $9/month official FR24 API Explorer plan remains an option if near-real-time daily flight counts become needed.
+**Rationale:** (a) Unofficial FR24 PyPI packages scrape the website, violating ToS and prone to breakage. (b) Supply chain concern — the March 2026 TeamPCP/LiteLLM PyPI compromise highlighted risks of third-party packages, though that specific attack targeted different packages via stolen maintainer credentials, not a PyPI platform breach. (c) The existing Brent→AIP→Servo Saver→Bluetooth chain already provides near-real-time oil-price-to-movement correlation for road traffic, which accounts for >80% of fuel consumption. (d) Monthly BITRE data covers aviation YoY trends adequately for dashboard purposes.
+**Ruled out:** (a) FR24 unofficial Python SDK — ToS violation, fragile, supply chain risk. (b) Direct FR24 website scraping via `requests` — same ToS/fragility issues. (c) FR24 global statistics CSV download — manual, cumbersome for weekly refresh, global-only (not airport-specific).
+**Revisit trigger:** If oil crisis analysis specifically needs daily airport-level flight counts that monthly BITRE can't provide.
+**Status:** Confirmed ✅
 
 ---
 

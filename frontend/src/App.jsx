@@ -51,7 +51,7 @@ export default function App() {
       <header className="app-header">
         <div className="app-brand">
           <h1>Traffic Movement</h1>
-          <h2>Victorian transport intelligence — traffic, speed, fuel prices, PT, fleet</h2>
+          <h2>Victorian transport intelligence</h2>
         </div>
       </header>
 
@@ -60,43 +60,49 @@ export default function App() {
       <main className="app-main">
         {tab === 'monitor' && (
           <>
-            <section className="panel">
+            <section className="panel-hero">
               <h3 className="panel-title">Weekly traffic — metro core stations (top 25% by volume)</h3>
-              <p className="panel-note">A station is a SCATS loop detector at a signalised intersection, counting vehicles every 15 minutes. Metro core = the busiest quarter of Melbourne's ~3,860 stations.</p>
+              <p className="panel-note">SCATS loop detectors · top 25% by volume · weekday average</p>
               <MetricCards data={monitorData} />
               <WeeklyTrendChart />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Daily traffic — metro core stations</h3>
-              <p className="panel-note">Daily vehicle count averaged across the same top-25% stations. Weekdays shown in solid, weekends and holidays faded.</p>
+              <p className="panel-note">Daily vehicle count across top-25% stations · weekdays solid, weekends faded</p>
               <DailyCountsChart />
             </section>
-            <SpeedPanel />
+            <section className="panel-secondary">
+              <SpeedPanel />
+            </section>
+            <section className="panel-secondary">
+              <h3 className="panel-title">Month-on-month — metro core stations</h3>
+              <MonthTable />
+            </section>
           </>
         )}
 
         {tab === 'patterns' && (
           <>
-            <section className="panel">
+            <section className="panel-hero">
               <h3 className="panel-title">Traffic intensity — hour × day of week</h3>
-              <p className="panel-note">Average vehicles per 15-min interval per station, across all ~3,860 SCATS stations over the last 12 weeks. Darker cells = busier periods.</p>
+              <p className="panel-note">~3,860 SCATS stations · last 12 weeks · avg vehicles per 15-min interval</p>
               <HeatmapChart />
             </section>
-            <div className="panel-grid">
-              <section className="panel">
+            <div className="panel-grid panel-grid--stretch">
+              <section className="panel-secondary panel-fill">
                 <h3 className="panel-title">Hourly profile — year comparison</h3>
-                <p className="panel-note">Average vehicles per 15-min interval per station at each hour. Toggle between weekdays, Saturday, and Sunday. Overlays multiple years. Red dashed line = average freeway speed from TIRTL sensors (right axis).</p>
+                <p className="panel-note">Avg vehicles per 15-min interval per hour · toggle weekday/Sat/Sun · TIRTL speed overlay</p>
                 <HourlyProfileChart />
               </section>
-              <section className="panel">
+              <section className="panel-secondary panel-fill">
                 <h3 className="panel-title">Day of week — business hours</h3>
-                <p className="panel-note">Average vehicles per hour per station, 7am–6pm only, across all ~3,860 SCATS stations. Averaged over the full 2025 calendar year (Jan–Dec). Weekend bars faded.</p>
+                <p className="panel-note">Avg vehicles/hr/station · 7am–6pm · full 2025 calendar year</p>
                 <DayOfWeekChart />
               </section>
             </div>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Weekday drift — 2024 vs 2025</h3>
-              <p className="panel-note">Has the shape of the work week changed? Compares average weekday traffic (business hours, excluding public holidays) between 2024 and 2025 to detect shifts like quieter Fridays or busier mid-week days.</p>
+              <p className="panel-note">Business-hours weekday traffic shift year-on-year · excludes public holidays</p>
               <WeekdayDrift />
             </section>
           </>
@@ -104,24 +110,24 @@ export default function App() {
 
         {tab === 'fuel' && (
           <>
-            <section className="panel">
+            <section className="panel-hero">
               <h3 className="panel-title">VIC fuel prices — state average</h3>
               <FuelStateAvg />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Oil to pump — price transmission chain</h3>
               <FuelPriceChain />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Traffic volume vs fuel price</h3>
               <FuelTrafficOverlay />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Vehicle fleet — fuel type</h3>
-              <p className="panel-note">Victorian registered vehicle fleet by fuel type. Source: ABS Motor Vehicle Census.</p>
+              <p className="panel-note">Victorian registered vehicles by fuel type · ABS Motor Vehicle Census</p>
               <FleetBreakdown />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Find cheapest fuel by postcode</h3>
               <FuelByPostcode />
             </section>
@@ -130,16 +136,16 @@ export default function App() {
 
         {tab === 'transport' && (
           <>
-            <section className="panel">
+            <section className="panel-hero">
               <h3 className="panel-title">Public transport patronage — Victoria</h3>
               <PTPatronageChart />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Vehicle mix — cars vs trucks (TIRTL sensors, March 2026)</h3>
-              <p className="panel-note">TIRTL (Traffic Infra-Red Logger) sensors classify vehicles by measuring wheelbase distance — the gap between axle groups as a vehicle passes over twin infra-red beams. Short wheelbase = car. Wider axle spacing or more axle groups = rigid truck, articulated truck, B-double, or bus. 288 TIRTL sites across Victorian freeways.</p>
+              <p className="panel-note">288 TIRTL sites · infra-red wheelbase classification · Austroads vehicle categories</p>
               <VehicleMixChart />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Daily patronage by day type (2025 avg)</h3>
               <PTDayTypeChart />
             </section>
@@ -151,7 +157,7 @@ export default function App() {
         )}
 
         {tab === 'explorer' && (
-          <section className="panel">
+          <section className="panel-hero">
             <div className="station-explorer">
               <StationMap
                 onSelectStation={setSelectedStation}
@@ -169,22 +175,18 @@ export default function App() {
 
         {tab === 'analysis' && (
           <>
-            <section className="panel">
+            <section className="panel-hero">
               <h3 className="panel-title">School holiday effect — metro core stations</h3>
               <SchoolHolidayChart />
             </section>
-            <section className="panel">
-              <h3 className="panel-title">Month-on-month — metro core stations</h3>
-              <MonthTable />
-            </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Peak and quiet days — metro core stations</h3>
-              <p className="panel-note">Ranking the busiest and quietest weekdays since Jan 2024 across the top-25% stations by volume. Context column shows public holidays, school holidays, or named events where applicable.</p>
+              <p className="panel-note">Busiest and quietest weekdays since Jan 2024 · top-25% stations · holidays and events flagged</p>
               <PeakDaysTable />
             </section>
-            <section className="panel">
+            <section className="panel-secondary">
               <h3 className="panel-title">Event impact on traffic — metro core stations</h3>
-              <p className="panel-note">Compares average traffic during the event window (event day ± 1 day) against a day-of-week matched baseline from the surrounding 4 weeks. Negative = less traffic than normal (event draws people off the road or onto PT).</p>
+              <p className="panel-note">Event window (±1 day) vs day-of-week matched 4-week baseline · negative = less traffic than normal</p>
               <EventImpact />
             </section>
           </>

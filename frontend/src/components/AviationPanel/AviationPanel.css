@@ -10,7 +10,7 @@
   flex: 1 1 160px;
   min-width: 160px;
   background: var(--card-bg, #fafafa);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   border-top: 3px solid #ccc;
 }
@@ -115,3 +115,68 @@
 
 .avi-good { color: #137333; font-weight: 600; }
 .avi-bad { color: #c5221f; font-weight: 600; }
+
+/* YoY routes table */
+.avi-yoy-table {
+  font-size: 12px;
+}
+.avi-yoy-table th.avi-yoy-route,
+.avi-yoy-table td.avi-yoy-route-cell {
+  position: sticky;
+  left: 0;
+  background: var(--card-bg, #fff);
+  z-index: 1;
+  min-width: 140px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.avi-yoy-month {
+  text-align: center;
+  min-width: 68px;
+  font-size: 11px;
+}
+.avi-yoy-cell {
+  text-align: center;
+  padding: 5px 4px;
+  line-height: 1.35;
+}
+.avi-yoy-pax {
+  display: block;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.avi-yoy-delta {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+}
+.avi-yoy-delta.up { color: #137333; }
+.avi-yoy-delta.down { color: #c5221f; }
+.avi-yoy-na { color: #ccc; }
+.avi-yoy-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.avi-yoy-row:hover {
+  background: #f0f4ff;
+}
+.avi-yoy-row.avi-yoy-selected {
+  background: #e8f0fe;
+}
+
+/* Metric toggle buttons */
+.avi-toggle {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+  white-space: nowrap;
+}
+.avi-toggle.active {
+  background: #1B3A5C;
+  color: #fff;
+  border-color: #1B3A5C;
+}
