@@ -5,6 +5,9 @@ Metro core = stations with P75+ average weekday daily volume during
 the Feb 2026 baseline period. This replaces the per-request temp table
 approach that was scanning 73M rows on every API call.
 
+Reads from the Parquet archive (hourly_counts table was dropped after
+summary tables were built — DEC-032).
+
 Run manually:   python scripts/materialize_metro_core.py
 Run via daily:   called by daily_refresh.py as first job
 
@@ -15,12 +18,18 @@ import duckdb
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "db" / "amip.duckdb"
+ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "db" / "archive"
 BASELINE_START = "2026-02-01"
 BASELINE_END = "2026-02-28"
+BASELINE_PARQUET = ARCHIVE_DIR / "hourly_counts_2026.parquet"
 
 
 def materialize():
     """Create/replace the permanent metro_core_stations table."""
+    if not BASELINE_PARQUET.exists():
+        print(f"ERROR: Parquet archive not found: {BASELINE_PARQUET}")
+        return 0
+
     con = duckdb.connect(str(DB_PATH), read_only=False)
     try:
         con.execute(f"""
@@ -28,7 +37,7 @@ def materialize():
             SELECT station_id, avg_daily FROM (
                 SELECT station_id,
                        sum(vehicle_count)::bigint / count(DISTINCT CAST(ts_hour AS DATE)) as avg_daily
-                FROM hourly_counts h
+                FROM read_parquet('{BASELINE_PARQUET}') h
                 WHERE h.state = 'VIC' AND ISODOW(CAST(ts_hour AS DATE)) <= 5
                   AND CAST(ts_hour AS DATE) BETWEEN '{BASELINE_START}' AND '{BASELINE_END}'
                 GROUP BY station_id
@@ -37,7 +46,7 @@ def materialize():
                 SELECT percentile_cont(0.75) WITHIN GROUP (ORDER BY avg_daily) FROM (
                     SELECT station_id,
                            sum(vehicle_count)::bigint / count(DISTINCT CAST(ts_hour AS DATE)) as avg_daily
-                    FROM hourly_counts h
+                    FROM read_parquet('{BASELINE_PARQUET}') h
                     WHERE h.state = 'VIC' AND ISODOW(CAST(ts_hour AS DATE)) <= 5
                       AND CAST(ts_hour AS DATE) BETWEEN '{BASELINE_START}' AND '{BASELINE_END}'
                     GROUP BY station_id

@@ -3,8 +3,12 @@ Incremental SCATS Traffic Volume Refresh
 
 Downloads the latest monthly ZIP from the VIC open data portal,
 extracts only CSVs for dates not yet in the database, ingests them
-into hourly_counts, updates summary tables, and refreshes the
+into temp tables, appends to summary tables, and updates the
 Parquet archive.
+
+Does NOT require the hourly_counts table (dropped in DEC-032).
+Latest date is read from daily_station_summary. New data flows
+directly into summary tables and Parquet archive.
 
 Designed to run daily/weekly as part of daily_refresh.py.
 Only new days are processed — no deletion, no full reload.
@@ -41,10 +45,15 @@ PORTAL_URL = "https://opendata.transport.vic.gov.au/dataset/traffic-signal-volum
 
 
 def get_latest_db_date() -> date:
-    """Return the latest SCATS date already in hourly_counts."""
+    """Return the latest SCATS date from daily_station_summary.
+
+    Previously read from hourly_counts (dropped in DEC-032).
+    daily_station_summary is always up-to-date because refresh_scats
+    appends to it directly during ingestion.
+    """
     con = duckdb.connect(str(DB_PATH), read_only=True)
     result = con.execute(
-        "SELECT max(ts_hour)::DATE FROM hourly_counts WHERE state = 'VIC'"
+        "SELECT max(day) FROM daily_station_summary"
     ).fetchone()[0]
     con.close()
     return result
@@ -249,20 +258,26 @@ def ingest_new_days(extract_dir: Path) -> int:
 
 
 def update_parquet_archive(year: int = None):
-    """Re-export the current year's Parquet file."""
+    """Re-export a year's Parquet file.
+
+    Note: This is a standalone utility. The main refresh() path already
+    appends to the Parquet archive during ingestion. This function is
+    only needed if you want to rebuild a year's archive from scratch,
+    which requires the hourly_counts table to exist (it was dropped
+    in DEC-032). For normal daily operation, this is never called.
+    """
     if year is None:
         year = date.today().year
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     out = ARCHIVE_DIR / f"hourly_counts_{year}.parquet"
 
-    con = duckdb.connect(str(DB_PATH), read_only=True)
-    con.execute(f"""
-        COPY (SELECT * FROM hourly_counts WHERE EXTRACT(YEAR FROM ts_hour) = {year})
-        TO '{out}' (FORMAT PARQUET, COMPRESSION ZSTD)
-    """)
-    con.close()
-    size_mb = os.path.getsize(str(out)) / (1024 * 1024)
-    print(f"  Parquet archive updated: {out.name} ({size_mb:.0f} MB)")
+    if out.exists():
+        size_mb = os.path.getsize(str(out)) / (1024 * 1024)
+        print(f"  Parquet archive already exists: {out.name} ({size_mb:.0f} MB)")
+        print(f"  Skipping — archive is updated incrementally during refresh()")
+    else:
+        print(f"  ERROR: No archive for {year} and hourly_counts table is dropped.")
+        print(f"  Cannot rebuild from scratch. Re-ingest from SCATS ZIPs if needed.")
 
 
 def refresh(skip_download=False):
