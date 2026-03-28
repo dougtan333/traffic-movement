@@ -8,8 +8,9 @@
  */
 import {
   ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, Customized,
+  CartesianGrid, Tooltip,
 } from 'recharts';
+import { useState, useRef, useEffect } from 'react';
 import { useTrafficData } from '../../hooks/useTrafficData';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
@@ -101,11 +102,41 @@ export default function WeeklyTrendChart() {
   for (const d of chartData) {
     d.schoolHol = isSchoolHoliday(d.week, schoolPeriods) ? yMax : null;
   }
-  // Find the crisis onset index for the Customized renderer
+  // Find the crisis onset index for the post-render SVG injection
   const crisisIdx = chartData.findIndex(d => d.week >= CRISIS_DATE);
+  const chartRef = useRef(null);
+
+  // Inject crisis vertical line after chart renders by reading dot positions
+  useEffect(() => {
+    if (crisisIdx < 0 || !chartRef.current) return;
+    const timer = setTimeout(() => {
+      const container = chartRef.current;
+      const svg = container?.querySelector('svg');
+      if (!svg) return;
+      // Remove any previous crisis line
+      svg.querySelectorAll('.crisis-marker').forEach(el => el.remove());
+      // Find the chart plot area from the cartesian grid
+      const grid = svg.querySelector('.recharts-cartesian-grid');
+      if (!grid) return;
+      const gridRect = grid.getBBox();
+      // Calculate x position: crisis index / total data points * plot width + left offset
+      const totalPoints = chartData.length;
+      const stepWidth = gridRect.width / (totalPoints - 1);
+      const cx = gridRect.x + crisisIdx * stepWidth;
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'crisis-marker');
+      g.innerHTML = `
+        <line x1="${cx}" x2="${cx}" y1="${gridRect.y}" y2="${gridRect.y + gridRect.height}"
+          stroke="#c4342d" stroke-width="1.5" stroke-dasharray="5 3" />
+        <text x="${cx + 4}" y="${gridRect.y + 10}" font-size="10" fill="#c4342d">Iran conflict</text>
+      `;
+      svg.appendChild(g);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [crisisIdx, chartData.length]);
 
   return (
-    <div className="chart-container">
+    <div className="chart-container" ref={chartRef}>
       <div className="chart-legend">
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne }} />Avg daily vehicles/station</span>
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne, opacity: 0.25 }} />Prior year</span>
@@ -144,7 +175,6 @@ export default function WeeklyTrendChart() {
             baseValue={yMin}
           />
 
-          {/* Iran conflict marker — rendered via Customized to access chart coordinates */}
 
           {/* Prior year comparison — faint */}
           <Line
@@ -167,26 +197,6 @@ export default function WeeklyTrendChart() {
             activeDot={{ r: 4 }}
           />
 
-          {/* Iran conflict — vertical dashed line via Customized */}
-          <Customized component={(props) => {
-            if (crisisIdx < 0) return null;
-            const { xAxisMap, yAxisMap, offset } = props;
-            const xAxis = xAxisMap && Object.values(xAxisMap)[0];
-            const yAxis = yAxisMap && Object.values(yAxisMap)[0];
-            if (!xAxis?.scale || !yAxis?.scale) return null;
-            const cx = xAxis.scale(crisisIdx) + (xAxis.bandSize || 0) / 2;
-            const y1 = offset?.top ?? 5;
-            const y2 = (offset?.top ?? 5) + (offset?.height ?? 300);
-            return (
-              <g>
-                <line x1={cx} x2={cx} y1={y1} y2={y2}
-                  stroke="#c4342d" strokeWidth={1.5} strokeDasharray="5 3" />
-                <text x={cx + 4} y={y1 + 10} fontSize={10} fill="#c4342d">
-                  Iran conflict
-                </text>
-              </g>
-            );
-          }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
