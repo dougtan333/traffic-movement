@@ -37,7 +37,7 @@ export default function MonthTable() {
   };
 
   return (
-    <div className="chart-container">
+    <div className="chart-container table-scroll">
       <table className="month-table">
         <thead>
           <tr>

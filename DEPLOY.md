@@ -3,14 +3,14 @@
 ## Architecture
 
 ```
-Cloudflare Pages (free)          Contabo VPS (€7.50/mo)
-┌─────────────────────┐          ┌──────────────────────────┐
-│  React static build │          │  Caddy (reverse proxy)   │
-│  Auto-deploys from  │  ──→──  │  FastAPI + uvicorn       │
-│  GitHub push        │          │  DuckDB (~270 MB file)   │
-└─────────────────────┘          │  Bluetooth poller        │
-                                 │  Daily refresh           │
-                                 └──────────────────────────┘
+Cloudflare Pages (free)            Contabo VPS (€7.50/mo)
+┌───────────────────────┐          ┌──────────────────────────┐
+│  React static build   │          │  Caddy (reverse proxy)   │
+│  amip.pages.dev       │  ──→──  │  FastAPI + uvicorn       │
+│  Auto-deploys from    │          │  DuckDB (~270 MB file)   │
+│  GitHub push          │          │  Bluetooth poller        │
+└───────────────────────┘          │  Daily refresh           │
+                                   └──────────────────────────┘
 ```
 
 - **Frontend:** Cloudflare Pages watches the GitHub repo, auto-builds and deploys on push

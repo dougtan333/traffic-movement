@@ -59,8 +59,10 @@
 }
 @media (max-width: 700px) {
   .panel-grid { grid-template-columns: 1fr; }
-  .app-header { flex-direction: column; gap: 1rem; }
-  .app { padding: 1.5rem 1rem; }
+  .app-header { flex-direction: column; gap: 0.5rem; }
+  .app { padding: 1.25rem 0.75rem; }
+  .panel-hero, .panel-secondary { padding: 1rem; }
+  .app-brand h1 { font-size: 1.125rem; }
 }
 .station-explorer {
   display: flex;

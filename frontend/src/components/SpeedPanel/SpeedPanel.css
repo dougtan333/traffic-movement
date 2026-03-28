@@ -7,6 +7,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 .speed-filter {
   font-family: var(--font-body);
@@ -17,7 +18,9 @@
   background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
-  min-width: 200px;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 150px;
 }
 .speed-filter:focus {
   outline: none;
@@ -95,7 +98,8 @@
 .speed-range-btns {
   display: flex;
   gap: 4px;
-  margin-left: 12px;
+  margin-left: 0;
+  flex-wrap: wrap;
 }
 .speed-range-btn {
   padding: 4px 10px;

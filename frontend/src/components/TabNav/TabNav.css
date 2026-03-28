@@ -2,7 +2,11 @@
   display: flex;
   gap: 4px;
   margin-bottom: 2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tab-nav::-webkit-scrollbar { display: none; }
 .tab-btn {
   padding: 7px 16px;
   border: none;
@@ -16,6 +20,8 @@
   cursor: pointer;
   border-radius: var(--radius);
   transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tab-btn:hover {
   color: var(--color-text);

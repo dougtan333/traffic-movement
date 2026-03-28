@@ -35,6 +35,10 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-body);
   background: var(--color-bg);
@@ -70,4 +74,13 @@ h3 {
   color: var(--color-text-light);
   margin: 2px 0 0.75rem 0;
   line-height: 1.4;
+}
+
+/* Mobile table scroll */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 700px) {
+  table { font-size: 0.75rem; }
 }

@@ -55,6 +55,7 @@ export default function FuelByPostcode() {
             )}
           </div>
 
+          <div className="table-scroll">
           <table className="fuel-table">
             <thead>
               <tr>
@@ -73,6 +74,7 @@ export default function FuelByPostcode() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

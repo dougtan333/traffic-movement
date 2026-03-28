@@ -4,6 +4,13 @@
   gap: 1.5rem;
   align-items: start;
 }
+@media (max-width: 700px) {
+  .peak-days-grid { grid-template-columns: 1fr; }
+}
+.peak-col {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .peak-col-title {
   font-size: 0.875rem;
   font-weight: 600;
