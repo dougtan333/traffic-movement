@@ -107,7 +107,7 @@ def weekly_trend(weeks: int = Query(26, ge=4, le=104)):
             FROM daily_station_summary
             WHERE is_weekday = true
               AND day >= (DATE '{earliest}' - INTERVAL '1 year')
-              AND day < (DATE '{latest}' - INTERVAL '1 year' + INTERVAL '8 days')
+              AND day < (DATE '{latest}' - INTERVAL '1 year' + INTERVAL '22 days')
             GROUP BY 1
             HAVING count(DISTINCT day) >= 3
             ORDER BY 1

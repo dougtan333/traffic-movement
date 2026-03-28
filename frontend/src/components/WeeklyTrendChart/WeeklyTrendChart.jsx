@@ -33,6 +33,9 @@ export default function WeeklyTrendChart() {
     }
   }
 
+  // Track which YoY keys get matched so we can project the remainder
+  const matchedYoyKeys = new Set();
+
   const chartData = data.data.map(d => {
     // Find closest YoY match (within 7 days of shifted date)
     const weekDate = new Date(d.week);
@@ -41,6 +44,7 @@ export default function WeeklyTrendChart() {
       const shiftedDate = new Date(shiftedStr);
       if (Math.abs(weekDate - shiftedDate) <= 7 * 86400000) {
         yoyVal = val;
+        matchedYoyKeys.add(shiftedStr);
         break;
       }
     }
@@ -50,6 +54,26 @@ export default function WeeklyTrendChart() {
       yoy: yoyVal,
     };
   });
+
+  // Project unmatched YoY weeks forward (next ~2 weeks beyond current data)
+  const latestWeek = data.data.length ? new Date(data.data[data.data.length - 1].week) : null;
+  if (latestWeek) {
+    const projectionLimit = new Date(latestWeek);
+    projectionLimit.setDate(projectionLimit.getDate() + 21); // up to 3 weeks ahead
+    const projections = Object.entries(yoyLookup)
+      .filter(([key]) => !matchedYoyKeys.has(key))
+      .map(([shiftedStr, val]) => ({ date: new Date(shiftedStr), val }))
+      .filter(p => p.date > latestWeek && p.date <= projectionLimit)
+      .sort((a, b) => a.date - b.date);
+    for (const p of projections) {
+      chartData.push({
+        week: p.date.toISOString().slice(0, 10),
+        avg_per_station: null,
+        label: p.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }),
+        yoy: p.val,
+      });
+    }
+  }
 
   // Find the chart label for a given date (match to nearest week)
   const dateToLabel = (dateStr) => {
@@ -67,7 +91,7 @@ export default function WeeklyTrendChart() {
     <div className="chart-container">
       <div className="chart-legend">
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne }} />Avg daily vehicles/station</span>
-        <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne, opacity: 0.25 }} />Prior year</span>
+        <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne, opacity: 0.25 }} />Prior year (+ 2 wk outlook)</span>
         <span className="legend-item"><span className="legend-swatch school-swatch" />School holidays</span>
         <span className="legend-item"><span className="legend-line crisis-line" />Iran conflict</span>
       </div>
