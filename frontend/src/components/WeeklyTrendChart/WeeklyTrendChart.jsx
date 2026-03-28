@@ -2,33 +2,15 @@
  * WeeklyTrendChart — weekday average vehicles per station, weekly.
  * Annotates: fuel crisis onset, school holiday periods, major events.
  * Victoria only.
- *
- * Annotations use data-driven approach (fields baked into chartData)
- * rather than Recharts ReferenceArea/ReferenceLine, which broke in v3.
  */
 import {
-  ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, ReferenceLine, ReferenceArea,
 } from 'recharts';
-import { useState, useRef, useEffect } from 'react';
 import { useTrafficData } from '../../hooks/useTrafficData';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
 import './WeeklyTrendChart.css';
-
-/** Check whether a week date falls inside any school holiday period */
-function isSchoolHoliday(weekStr, periods) {
-  if (!periods?.length) return false;
-  const d = new Date(weekStr);
-  for (const p of periods) {
-    // Extend window by 6 days so a week starting near a holiday edge is included
-    const start = new Date(p.start);
-    const end = new Date(p.end);
-    end.setDate(end.getDate() + 6);
-    if (d >= start && d <= end) return true;
-  }
-  return false;
-}
 
 export default function WeeklyTrendChart() {
   const { data, loading, error } = useTrafficData('/api/traffic/weekly-trend', {
@@ -51,17 +33,14 @@ export default function WeeklyTrendChart() {
     }
   }
 
-  // Track which YoY keys get matched so we can project the remainder
-  const matchedYoyKeys = new Set();
-
   const chartData = data.data.map(d => {
+    // Find closest YoY match (within 7 days of shifted date)
     const weekDate = new Date(d.week);
     let yoyVal = null;
     for (const [shiftedStr, val] of Object.entries(yoyLookup)) {
       const shiftedDate = new Date(shiftedStr);
       if (Math.abs(weekDate - shiftedDate) <= 7 * 86400000) {
         yoyVal = val;
-        matchedYoyKeys.add(shiftedStr);
         break;
       }
     }
@@ -72,71 +51,20 @@ export default function WeeklyTrendChart() {
     };
   });
 
-  // Project unmatched YoY weeks forward (next ~2 weeks beyond current data)
-  const latestWeek = data.data.length ? new Date(data.data[data.data.length - 1].week) : null;
-  if (latestWeek) {
-    const projectionLimit = new Date(latestWeek);
-    projectionLimit.setDate(projectionLimit.getDate() + 21);
-    const projections = Object.entries(yoyLookup)
-      .filter(([key]) => !matchedYoyKeys.has(key))
-      .map(([shiftedStr, val]) => ({ date: new Date(shiftedStr), val }))
-      .filter(p => p.date > latestWeek && p.date <= projectionLimit)
-      .sort((a, b) => a.date - b.date);
-    for (const p of projections) {
-      chartData.push({
-        week: p.date.toISOString().slice(0, 10),
-        avg_per_station: null,
-        label: p.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }),
-        yoy: p.val,
-      });
+  // Find the chart label for a given date (match to nearest week)
+  const dateToLabel = (dateStr) => {
+    const target = new Date(dateStr);
+    let closest = chartData[0];
+    let minDist = Infinity;
+    for (const d of chartData) {
+      const dist = Math.abs(new Date(d.week) - target);
+      if (dist < minDist) { minDist = dist; closest = d; }
     }
-  }
-
-  // Compute Y-axis range for school holiday band height
-  const allVals = chartData.flatMap(d => [d.avg_per_station, d.yoy].filter(v => v != null));
-  const yMax = Math.max(...allVals) + 1000;
-  const yMin = Math.min(...allVals) - 2000;
-
-  // Bake school holiday annotation into each data point
-  const schoolPeriods = calData?.school_holidays || [];
-  for (const d of chartData) {
-    d.schoolHol = isSchoolHoliday(d.week, schoolPeriods) ? yMax : null;
-  }
-  // Find the crisis onset index for the post-render SVG injection
-  const crisisIdx = chartData.findIndex(d => d.week >= CRISIS_DATE);
-  const chartRef = useRef(null);
-
-  // Inject crisis vertical line after chart renders by reading dot positions
-  useEffect(() => {
-    if (crisisIdx < 0 || !chartRef.current) return;
-    const timer = setTimeout(() => {
-      const container = chartRef.current;
-      const svg = container?.querySelector('svg');
-      if (!svg) return;
-      // Remove any previous crisis line
-      svg.querySelectorAll('.crisis-marker').forEach(el => el.remove());
-      // Find the chart plot area from the cartesian grid
-      const grid = svg.querySelector('.recharts-cartesian-grid');
-      if (!grid) return;
-      const gridRect = grid.getBBox();
-      // Calculate x position: crisis index / total data points * plot width + left offset
-      const totalPoints = chartData.length;
-      const stepWidth = gridRect.width / (totalPoints - 1);
-      const cx = gridRect.x + crisisIdx * stepWidth;
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('class', 'crisis-marker');
-      g.innerHTML = `
-        <line x1="${cx}" x2="${cx}" y1="${gridRect.y}" y2="${gridRect.y + gridRect.height}"
-          stroke="#c4342d" stroke-width="1.5" stroke-dasharray="5 3" />
-        <text x="${cx + 4}" y="${gridRect.y + 10}" font-size="10" fill="#c4342d">Iran conflict</text>
-      `;
-      svg.appendChild(g);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [crisisIdx, chartData.length]);
+    return closest?.label;
+  };
 
   return (
-    <div className="chart-container" ref={chartRef}>
+    <div className="chart-container">
       <div className="chart-legend">
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne }} />Avg daily vehicles/station</span>
         <span className="legend-item"><span className="legend-swatch" style={{ background: CITY_COLORS.melbourne, opacity: 0.25 }} />Prior year</span>
@@ -144,37 +72,47 @@ export default function WeeklyTrendChart() {
         <span className="legend-item"><span className="legend-line crisis-line" />Iran conflict</span>
       </div>
       <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+        <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
           <YAxis
             label={{ value: 'Vehicles/day/station', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fill: '#888' } }}
             tick={{ fontSize: 11 }}
             tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
-            domain={[yMin, yMax]}
+            domain={['dataMin - 2000', 'dataMax + 1000']}
           />
           <Tooltip
             formatter={(value, name) => {
               if (value == null) return [null, null];
-              if (name === 'schoolHol' || name === 'crisisLine') return [null, null];
               const label = name === 'yoy' ? 'Prior year' : 'Vehicles/day/station';
               return [value.toLocaleString(), label];
             }}
             labelFormatter={(label) => `Week of ${label}`}
           />
 
-          {/* School holiday shading — Area fills full chart height during holiday weeks */}
-          <Area
-            type="step"
-            dataKey="schoolHol"
-            fill="#e9c46a"
-            fillOpacity={0.15}
-            stroke="none"
-            isAnimationActive={false}
-            connectNulls={false}
-            baseValue={yMin}
-          />
+          {/* School holiday shading */}
+          {(calData?.school_holidays || []).map((period, i) => {
+            const x1 = dateToLabel(period.start);
+            const x2 = dateToLabel(period.end);
+            if (!x1 || !x2) return null;
+            return (
+              <ReferenceArea
+                key={`school-${i}`}
+                x1={x1} x2={x2}
+                fill="#e9c46a" fillOpacity={0.15}
+                stroke="none"
+              />
+            );
+          })}
 
+          {/* Iran conflict marker */}
+          <ReferenceLine
+            x={chartData.find(d => d.week >= CRISIS_DATE)?.label}
+            stroke="#c4342d"
+            strokeDasharray="5 3"
+            strokeWidth={1.5}
+            label={{ value: 'Iran conflict', position: 'top', fontSize: 10, fill: '#c4342d' }}
+          />
 
           {/* Prior year comparison — faint */}
           <Line
@@ -196,8 +134,7 @@ export default function WeeklyTrendChart() {
             dot={false}
             activeDot={{ r: 4 }}
           />
-
-        </ComposedChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
