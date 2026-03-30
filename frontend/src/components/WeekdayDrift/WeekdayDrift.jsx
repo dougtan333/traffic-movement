@@ -1,5 +1,5 @@
 /**
- * WeekdayDrift — compares Mon–Fri traffic profile between 2024 and 2025.
+ * WeekdayDrift — compares Mon–Fri traffic profile across 2024, 2025, and 2026.
  * Grouped bar chart showing whether specific weekdays are getting busier or quieter.
  * Business hours only, metro core stations, Victoria only.
  */
@@ -19,17 +19,23 @@ export default function WeekdayDrift() {
 
   const chartData = data.data;
 
-  // Find biggest mover for commentary
-  const sorted = [...chartData].sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
+  // Find biggest 25→26 mover for commentary (most relevant comparison)
+  const withChange = chartData.filter(d => d.change_pct_25_26 != null);
+  const sorted = [...withChange].sort((a, b) => Math.abs(b.change_pct_25_26) - Math.abs(a.change_pct_25_26));
   const biggest = sorted[0];
   const smallest = sorted[sorted.length - 1];
 
   return (
     <div className="weekday-drift">
       <p className="drift-commentary">
-        {biggest.day} showed the largest year-on-year shift ({biggest.change_pct > 0 ? '+' : ''}{biggest.change_pct}%), 
-        while {smallest.day} was the most stable ({smallest.change_pct > 0 ? '+' : ''}{smallest.change_pct}%). 
-        All values are business hours (7am–6pm), excluding public holidays.
+        {biggest && smallest ? (
+          <>
+            {biggest.day} showed the largest 2025→26 shift ({biggest.change_pct_25_26 > 0 ? '+' : ''}{biggest.change_pct_25_26}%),
+            while {smallest.day} was the most stable ({smallest.change_pct_25_26 > 0 ? '+' : ''}{smallest.change_pct_25_26}%).
+          </>
+        ) : null}
+        {' '}All values are business hours (7am–6pm), excluding public holidays.
+        {data.note_2026 ? <span className="drift-note"> {data.note_2026}.</span> : null}
       </p>
       <div className="chart-container">
         <ResponsiveContainer width="100%" height={300}>
@@ -42,21 +48,37 @@ export default function WeekdayDrift() {
               label={{ value: 'Vehicles/day/station', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fill: '#888' } }}
             />
             <Tooltip
-              formatter={(v, name) => [v.toLocaleString(), name === 'avg_2024' ? '2024' : '2025']}
+              formatter={(v, name) => {
+                const labels = { avg_2024: '2024', avg_2025: '2025', avg_2026: '2026' };
+                return [v.toLocaleString(), labels[name] || name];
+              }}
             />
-            <Legend formatter={(v) => v === 'avg_2024' ? '2024' : '2025'} />
+            <Legend formatter={(v) => {
+              const labels = { avg_2024: '2024', avg_2025: '2025', avg_2026: '2026' };
+              return labels[v] || v;
+            }} />
             <Bar dataKey="avg_2024" fill="#73726c" radius={[4, 4, 0, 0]} />
             <Bar dataKey="avg_2025" fill="#1D9E75" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="avg_2026" fill="#2563eb" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="drift-table">
+        <div className="drift-row drift-header">
+          <span className="drift-day"></span>
+          <span className="drift-values">2024 → 2025 → 2026</span>
+          <span className="drift-pct">24→25</span>
+          <span className="drift-pct">25→26</span>
+        </div>
         {chartData.map(d => (
           <div key={d.day} className="drift-row">
             <span className="drift-day">{d.day}</span>
-            <span className="drift-values">{d.avg_2024.toLocaleString()} → {d.avg_2025.toLocaleString()}</span>
-            <span className={`drift-pct ${d.change_pct > 0 ? 'up' : 'down'}`}>
-              {d.change_pct > 0 ? '+' : ''}{d.change_pct}%
+            <span className="drift-values">{d.avg_2024.toLocaleString()} → {d.avg_2025.toLocaleString()} → {d.avg_2026.toLocaleString()}</span>
+            <span className={`drift-pct ${d.change_pct_24_25 > 0 ? 'up' : 'down'}`}>
+              {d.change_pct_24_25 > 0 ? '+' : ''}{d.change_pct_24_25}%
+            </span>
+            <span className={`drift-pct ${d.change_pct_25_26 > 0 ? 'up' : 'down'}`}>
+              {d.change_pct_25_26 > 0 ? '+' : ''}{d.change_pct_25_26}%
             </span>
           </div>
         ))}

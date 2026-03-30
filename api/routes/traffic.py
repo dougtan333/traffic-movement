@@ -455,7 +455,7 @@ def event_impact():
 @router.get("/weekday-drift")
 def weekday_drift():
     """
-    Compare the day-of-week traffic profile between 2024 and 2025.
+    Compare the day-of-week traffic profile across 2024, 2025, and 2026.
     Shows whether Fridays are getting quieter, Mondays shifting, etc.
     Business hours (7am-6pm) only, metro core stations.
     """
@@ -470,7 +470,7 @@ def weekday_drift():
             JOIN calendar c ON d.day = c.date
             WHERE d.is_weekday = true
               AND c.is_public_holiday_vic = false
-              AND d.year IN (2024, 2025)
+              AND d.year IN (2024, 2025, 2026)
             GROUP BY 1, 2, 3
         )
         SELECT yr, dow, AVG(avg_per_station)::INT as avg_traffic,
@@ -482,27 +482,27 @@ def weekday_drift():
     con.close()
 
     DOW_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-    data_2024 = {}
-    data_2025 = {}
+    by_year = {2024: {}, 2025: {}, 2026: {}}
     for r in rows:
-        entry = {"dow": r[1], "day": DOW_NAMES[r[1]] if r[1] <= 5 else None, "avg": r[2], "days": r[3]}
-        if r[0] == 2024:
-            data_2024[r[1]] = entry
-        else:
-            data_2025[r[1]] = entry
+        yr, dow, avg, days = r
+        if yr in by_year:
+            by_year[yr][dow] = {"avg": avg, "days": days}
 
     combined = []
     for dow in range(1, 6):
-        d24 = data_2024.get(dow, {})
-        d25 = data_2025.get(dow, {})
-        avg_24 = d24.get('avg', 0)
-        avg_25 = d25.get('avg', 0)
-        pct = round((avg_25 - avg_24) / avg_24 * 100, 1) if avg_24 else None
+        avg_24 = by_year[2024].get(dow, {}).get('avg', 0)
+        avg_25 = by_year[2025].get(dow, {}).get('avg', 0)
+        avg_26 = by_year[2026].get(dow, {}).get('avg', 0)
+        pct_24_25 = round((avg_25 - avg_24) / avg_24 * 100, 1) if avg_24 else None
+        pct_25_26 = round((avg_26 - avg_25) / avg_25 * 100, 1) if avg_25 else None
         combined.append({
             "day": DOW_NAMES[dow],
             "avg_2024": avg_24,
             "avg_2025": avg_25,
-            "change_pct": pct,
+            "avg_2026": avg_26,
+            "change_pct_24_25": pct_24_25,
+            "change_pct_25_26": pct_25_26,
         })
 
-    return {"city": "melbourne", "data": combined}
+    days_2026 = sum(by_year[2026].get(dow, {}).get('days', 0) for dow in range(1, 6))
+    return {"city": "melbourne", "data": combined, "note_2026": f"2026 based on {days_2026} weekdays so far (year to date)"}
