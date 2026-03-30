@@ -101,7 +101,7 @@ export default function App() {
               </section>
             </div>
             <section className="panel-secondary">
-              <h3 className="panel-title">Weekday drift — 2024 vs 2025</h3>
+              <h3 className="panel-title">Weekday drift — 2024 / 2025 / 2026</h3>
               <p className="panel-note">Business-hours weekday traffic shift year-on-year · excludes public holidays</p>
               <WeekdayDrift />
             </section>
