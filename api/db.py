@@ -20,13 +20,15 @@ BASELINE_END = "2026-02-28"
 
 def get_connection() -> duckdb.DuckDBPyConnection:
     """Return a read-only connection to the AMIP database.
-    Retries up to 3 times on transient lock conflicts (e.g. bluetooth poller WAL)."""
-    for attempt in range(3):
+    Retries up to 5 times with 1s delay on lock conflicts from the
+    bluetooth poller's WAL. DuckDB read-only connections fail when
+    another process holds the WAL lock."""
+    for attempt in range(5):
         try:
             return duckdb.connect(str(DB_PATH), read_only=True)
-        except duckdb.IOException:
-            if attempt < 2:
-                time.sleep(0.3)
+        except (duckdb.IOException, Exception) as e:
+            if "lock" in str(e).lower() and attempt < 4:
+                time.sleep(1)
             else:
                 raise
 
