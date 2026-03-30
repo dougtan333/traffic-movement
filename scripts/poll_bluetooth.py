@@ -209,6 +209,7 @@ def main():
     # First run: fetch route reference data (connect/disconnect immediately)
     con = duckdb.connect(str(DB_PATH))
     fetch_and_store_routes(con, api_key)
+    con.execute("CHECKPOINT")
     con.close()
 
     if args.loop:
@@ -217,6 +218,7 @@ def main():
             try:
                 con = duckdb.connect(str(DB_PATH))
                 poll_links(con, api_key)
+                con.execute("CHECKPOINT")
                 con.close()
             except requests.exceptions.RequestException as e:
                 print(f"  NETWORK ERROR: {e} — will retry in {POLL_INTERVAL}s")
@@ -226,6 +228,7 @@ def main():
     else:
         con = duckdb.connect(str(DB_PATH))
         poll_links(con, api_key)
+        con.execute("CHECKPOINT")
         con.close()
 
     print("Done.")
