@@ -19,18 +19,21 @@ export function useTrafficData(endpoint, params = {}) {
 
   useEffect(() => {
     if (!url) { setLoading(false); return; }
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
 
-    fetch(url)
+    fetch(url, { signal: controller.signal })
       .then(res => {
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         return res.json();
       })
-      .then(json => { if (!cancelled) { setData(json); setLoading(false); setError(null); } })
-      .catch(err => { if (!cancelled) { setError(err.message); setLoading(false); } });
+      .then(json => { setData(json); setLoading(false); setError(null); })
+      .catch(err => {
+        if (err.name === 'AbortError') return; // unmounted — ignore silently
+        setError(err.message); setLoading(false);
+      });
 
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, [url]);
 
   return { data, loading, error };

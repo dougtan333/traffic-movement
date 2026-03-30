@@ -3,9 +3,11 @@ Database connection helper for the AMIP API.
 
 Returns a read-only DuckDB connection to amip.duckdb.
 Each request gets its own connection (DuckDB handles this efficiently).
+Includes retry logic for transient lock conflicts with the bluetooth poller.
 """
 
 from pathlib import Path
+import time
 import duckdb
 
 DB_PATH = Path(__file__).resolve().parent.parent / "db" / "amip.duckdb"
@@ -17,8 +19,16 @@ BASELINE_END = "2026-02-28"
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
-    """Return a read-only connection to the AMIP database."""
-    return duckdb.connect(str(DB_PATH), read_only=True)
+    """Return a read-only connection to the AMIP database.
+    Retries up to 3 times on transient lock conflicts (e.g. bluetooth poller WAL)."""
+    for attempt in range(3):
+        try:
+            return duckdb.connect(str(DB_PATH), read_only=True)
+        except duckdb.IOException:
+            if attempt < 2:
+                time.sleep(0.3)
+            else:
+                raise
 
 
 def get_metro_core_count(con: duckdb.DuckDBPyConnection) -> int:

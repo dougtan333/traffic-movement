@@ -35,7 +35,7 @@ export default function WeekdayDrift() {
           </>
         ) : null}
         {' '}All values are business hours (7am–6pm), excluding public holidays.
-        {data.note_2026 ? <span className="drift-note"> {data.note_2026}.</span> : null}
+        {data.comparison_window ? <span className="drift-note"> Like-for-like: {data.comparison_window}.</span> : null}
       </p>
       <div className="chart-container">
         <ResponsiveContainer width="100%" height={300}>

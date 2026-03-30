@@ -456,10 +456,23 @@ def event_impact():
 def weekday_drift():
     """
     Compare the day-of-week traffic profile across 2024, 2025, and 2026.
-    Shows whether Fridays are getting quieter, Mondays shifting, etc.
-    Business hours (7am-6pm) only, metro core stations.
+    Like-for-like: all years filtered to the same Jan 1 → latest-2026-date
+    window so seasonal mix is identical. Business hours (7am-6pm) only,
+    metro core stations, public holidays excluded.
     """
     con = get_connection()
+
+    # Find the latest date in 2026 to set the comparison window
+    cutoff = con.execute("""
+        SELECT MAX(day) FROM daily_station_summary WHERE year = 2026
+    """).fetchone()[0]
+    if not cutoff:
+        con.close()
+        return {"city": "melbourne", "data": [], "note": "No 2026 data available"}
+
+    # Month-day cutoff for like-for-like comparison across years
+    cutoff_md = cutoff.strftime('%m-%d')
+
     rows = con.execute("""
         WITH daily AS (
             SELECT d.day,
@@ -471,6 +484,7 @@ def weekday_drift():
             WHERE d.is_weekday = true
               AND c.is_public_holiday_vic = false
               AND d.year IN (2024, 2025, 2026)
+              AND STRFTIME(d.day, '%m-%d') <= ?
             GROUP BY 1, 2, 3
         )
         SELECT yr, dow, AVG(avg_per_station)::INT as avg_traffic,
@@ -478,7 +492,7 @@ def weekday_drift():
         FROM daily
         GROUP BY yr, dow
         ORDER BY yr, dow
-    """).fetchall()
+    """, [cutoff_md]).fetchall()
     con.close()
 
     DOW_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -504,5 +518,10 @@ def weekday_drift():
             "change_pct_25_26": pct_25_26,
         })
 
-    days_2026 = sum(by_year[2026].get(dow, {}).get('days', 0) for dow in range(1, 6))
-    return {"city": "melbourne", "data": combined, "note_2026": f"2026 based on {days_2026} weekdays so far (year to date)"}
+    days_sampled = {yr: sum(by_year[yr].get(dow, {}).get('days', 0) for dow in range(1, 6)) for yr in [2024, 2025, 2026]}
+    return {
+        "city": "melbourne",
+        "data": combined,
+        "comparison_window": f"1 Jan – {cutoff.strftime('%-d %b')} each year",
+        "days_sampled": days_sampled,
+    }
