@@ -90,10 +90,20 @@ def run_script(name, description, args=None):
 
 
 def refresh_all():
-    """Run all daily refresh jobs."""
+    """Run all daily refresh jobs.
+    
+    Stops the Bluetooth poller before write-heavy operations to avoid
+    DuckDB WAL lock conflicts, restarts it after all writes complete.
+    """
     log("=" * 60)
     log("AMIP DAILY REFRESH")
     log("=" * 60)
+
+    # Stop Bluetooth poller to release DB write lock
+    log("  Stopping Bluetooth poller for DB writes...")
+    subprocess.run(["sudo", "-n", "systemctl", "stop", "amip-bluetooth"],
+                   capture_output=True, timeout=10)
+    time.sleep(2)
 
     results = {}
 
@@ -155,6 +165,11 @@ def refresh_all():
         "Database backup (timestamped copy)"
     )
 
+    # Restart Bluetooth poller now that all writes are done
+    log("  Restarting Bluetooth poller...")
+    subprocess.run(["sudo", "-n", "systemctl", "start", "amip-bluetooth"],
+                   capture_output=True, timeout=10)
+
     # Summary
     log("=" * 60)
     ok = sum(1 for v in results.values() if v)
@@ -207,12 +222,17 @@ def main():
         if job_type == "full":
             refresh_all()
         else:
-            # PM fuel poll only
+            # PM fuel poll only — stop bluetooth for write lock
             log("=" * 60)
             log("FUEL PM SNAPSHOT")
             log("=" * 60)
+            subprocess.run(["sudo", "-n", "systemctl", "stop", "amip-bluetooth"],
+                           capture_output=True, timeout=10)
+            time.sleep(2)
             run_script("poll_fuel_prices.py", "Retail fuel prices (PM)",
                        args=["--period", "PM"])
+            subprocess.run(["sudo", "-n", "systemctl", "start", "amip-bluetooth"],
+                           capture_output=True, timeout=10)
             log("=" * 60)
 
 
