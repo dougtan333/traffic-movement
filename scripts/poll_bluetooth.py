@@ -215,15 +215,23 @@ def main():
     if args.loop:
         print(f"\nStarting continuous polling (every {POLL_INTERVAL}s). Ctrl+C to stop.\n")
         while True:
+            con = None
             try:
                 con = duckdb.connect(str(DB_PATH))
                 poll_links(con, api_key)
                 con.execute("CHECKPOINT")
-                con.close()
             except requests.exceptions.RequestException as e:
                 print(f"  NETWORK ERROR: {e} — will retry in {POLL_INTERVAL}s")
+            except duckdb.IOException as e:
+                print(f"  DB LOCK ERROR: {e} — will retry in {POLL_INTERVAL}s")
             except Exception as e:
                 print(f"  ERROR: {e} — will retry in {POLL_INTERVAL}s")
+            finally:
+                if con is not None:
+                    try:
+                        con.close()
+                    except Exception:
+                        pass
             time.sleep(POLL_INTERVAL)
     else:
         con = duckdb.connect(str(DB_PATH))
