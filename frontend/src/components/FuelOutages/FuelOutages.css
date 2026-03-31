@@ -1,0 +1,76 @@
+.fuel-outages-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.fuel-outages-state {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--badge-bg, #e5e7eb);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.fuel-outages-date {
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.fuel-outages-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.fuel-outage-card {
+  background: var(--card-bg, #f9fafb);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  border-left: 4px solid #22c55e;
+  transition: border-color 0.2s;
+}
+.fuel-outage-moderate { border-left-color: #f59e0b; }
+.fuel-outage-severe   { border-left-color: #ef4444; }
+
+.fuel-outage-type {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 0.2rem;
+}
+.fuel-outage-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.fuel-outage-label {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted, #6b7280);
+}
+
+.fuel-outage-pct {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+.fuel-outage-price {
+  font-size: 0.7rem;
+  color: var(--text-muted, #9ca3af);
+  margin-top: 0.1rem;
+}
+
+.fuel-outages-chart {
+  margin-top: 0.5rem;
+}
+
+.fuel-outages-note {
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+  margin-top: 0.5rem;
+}

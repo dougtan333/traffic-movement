@@ -103,10 +103,11 @@ def refresh_all():
         "Metro core station cohort (P75+ baseline)"
     )
 
-    # 1. Retail fuel prices
+    # 1. Retail fuel prices (AM snapshot — PM runs separately at 5pm)
     results["retail_fuel"] = run_script(
         "poll_fuel_prices.py",
-        "Retail fuel prices (Servo Saver)"
+        "Retail fuel prices (Servo Saver)",
+        args=["--period", "AM"]
     )
 
     # 2. Brent crude + FX rates
@@ -177,18 +178,42 @@ def main():
         success = refresh_all()
         sys.exit(0 if success else 1)
 
-    # Loop mode: run at 7am AEST daily
-    log("Starting daily refresh loop (7am AEST)")
+    # Loop mode: run full refresh at 7am AEST, fuel-only at 5pm AEST
+    log("Starting daily refresh loop (7am full + 5pm fuel)")
     while True:
         now = datetime.now(AEST)
-        # Calculate next 7am
-        target = now.replace(hour=7, minute=0, second=0, microsecond=0)
-        if now >= target:
-            target += timedelta(days=1)
+
+        # Calculate next event: 7am (full) or 5pm (fuel PM)
+        target_7am = now.replace(hour=7, minute=0, second=0, microsecond=0)
+        target_5pm = now.replace(hour=17, minute=0, second=0, microsecond=0)
+        if now >= target_7am:
+            target_7am += timedelta(days=1)
+        if now >= target_5pm:
+            target_5pm += timedelta(days=1)
+
+        # Pick whichever is sooner
+        if target_5pm < target_7am:
+            target = target_5pm
+            job_type = "fuel_pm"
+        else:
+            target = target_7am
+            job_type = "full"
+
         wait_secs = (target - now).total_seconds()
-        log(f"Next refresh at {target.strftime('%Y-%m-%d %H:%M')} AEST ({wait_secs/3600:.1f}h)")
+        label = "FULL REFRESH" if job_type == "full" else "FUEL PM ONLY"
+        log(f"Next: {label} at {target.strftime('%Y-%m-%d %H:%M')} AEST ({wait_secs/3600:.1f}h)")
         time.sleep(wait_secs)
-        refresh_all()
+
+        if job_type == "full":
+            refresh_all()
+        else:
+            # PM fuel poll only
+            log("=" * 60)
+            log("FUEL PM SNAPSHOT")
+            log("=" * 60)
+            run_script("poll_fuel_prices.py", "Retail fuel prices (PM)",
+                       args=["--period", "PM"])
+            log("=" * 60)
 
 
 if __name__ == "__main__":

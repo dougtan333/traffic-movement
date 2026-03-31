@@ -311,3 +311,191 @@ def nearby_fuel(lat: float = Query(...), lon: float = Query(...), limit: int = Q
             stations[sid]["prices"][r[8]] = float(r[9])
 
     return {"stations": list(stations.values())}
+
+
+
+@router.get("/outages")
+def outages(state: str = Query("VIC")):
+    """Daily fuel outage counts by fuel type, excluding structural non-sellers.
+
+    A station is 'structurally unavailable' for a fuel type if it has NEVER
+    reported that type as available in our data. These are filtered out so
+    the metric reflects genuine supply disruption, not stations that simply
+    don't stock a given fuel.
+
+    Returns one row per (date, fuel_type) with total stations, unavailable
+    count, and percentage. Uses the latest snapshot_period per day (PM if
+    available, else AM).
+    """
+    con = get_connection()
+    rows = con.execute("""
+        WITH latest_period AS (
+            -- Pick the latest snapshot_period per day (PM > AM)
+            SELECT snapshot_date,
+                   max(snapshot_period) as period
+            FROM fuel_prices
+            GROUP BY snapshot_date
+        ),
+        structural_unavail AS (
+            -- Stations that have NEVER been available for a fuel type
+            SELECT station_id, fuel_type
+            FROM fuel_prices
+            GROUP BY station_id, fuel_type
+            HAVING max(case when is_available then 1 else 0 end) = 0
+        ),
+        filtered AS (
+            SELECT fp.snapshot_date, fp.fuel_type,
+                   fp.is_available
+            FROM fuel_prices fp
+            JOIN latest_period lp
+                ON fp.snapshot_date = lp.snapshot_date
+                AND fp.snapshot_period = lp.period
+            WHERE NOT EXISTS (
+                SELECT 1 FROM structural_unavail su
+                WHERE su.station_id = fp.station_id
+                  AND su.fuel_type = fp.fuel_type
+            )
+        )
+        SELECT snapshot_date, fuel_type,
+               count(*) as total_stations,
+               sum(case when not is_available then 1 else 0 end) as unavailable,
+               round(100.0 * sum(case when not is_available then 1 else 0 end)
+                     / count(*), 1) as pct_out
+        FROM filtered
+        GROUP BY snapshot_date, fuel_type
+        ORDER BY snapshot_date, fuel_type
+    """).fetchall()
+    con.close()
+
+    return {
+        "state": state,
+        "data": [
+            {
+                "date": str(r[0]),
+                "fuel_type": r[1],
+                "total_stations": r[2],
+                "unavailable": r[3],
+                "pct_out": float(r[4]),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/outage-map")
+def outage_map(fuel_type: str = Query("DSL")):
+    """Station-level availability for map display, latest snapshot.
+
+    Returns all stations with their availability status for the given
+    fuel type. Frontend colours: green = available, red = unavailable.
+    Excludes stations that have never stocked the fuel type.
+    """
+    con = get_connection()
+    rows = con.execute("""
+        WITH latest AS (
+            SELECT max(snapshot_date) as d,
+                   max(snapshot_period) as p
+            FROM fuel_prices
+            WHERE snapshot_date = (SELECT max(snapshot_date) FROM fuel_prices)
+        ),
+        structural_unavail AS (
+            SELECT station_id, fuel_type
+            FROM fuel_prices
+            GROUP BY station_id, fuel_type
+            HAVING max(case when is_available then 1 else 0 end) = 0
+        )
+        SELECT fs.station_id, fs.name, fs.brand_name, fs.suburb,
+               fs.postcode, fs.latitude, fs.longitude,
+               fp.is_available, fp.price_cpl, fp.snapshot_date
+        FROM fuel_prices fp
+        JOIN fuel_stations fs ON fp.station_id = fs.station_id
+        CROSS JOIN latest l
+        WHERE fp.fuel_type = ?
+          AND fp.snapshot_date = l.d
+          AND fp.snapshot_period = l.p
+          AND fs.latitude IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM structural_unavail su
+              WHERE su.station_id = fp.station_id
+                AND su.fuel_type = fp.fuel_type
+          )
+        ORDER BY fp.is_available, fs.suburb
+    """, [fuel_type]).fetchall()
+    con.close()
+
+    return {
+        "fuel_type": fuel_type,
+        "date": str(rows[0][9]) if rows else None,
+        "total": len(rows),
+        "unavailable": sum(1 for r in rows if not r[7]),
+        "stations": [
+            {
+                "id": r[0], "name": r[1], "brand": r[2],
+                "suburb": r[3], "postcode": r[4],
+                "lat": r[5], "lon": r[6],
+                "available": r[7],
+                "price_cpl": float(r[8]) if r[8] else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/outage-summary")
+def outage_summary(state: str = Query("VIC")):
+    """Headline outage stats for dashboard metric cards.
+
+    Returns latest-day stats for major fuel types (U91, P95, P98, DSL, E10, LPG):
+    total stations, unavailable count, % out, and average price.
+    """
+    con = get_connection()
+    rows = con.execute("""
+        WITH latest AS (
+            SELECT max(snapshot_date) as d,
+                   max(snapshot_period) as p
+            FROM fuel_prices
+            WHERE snapshot_date = (SELECT max(snapshot_date) FROM fuel_prices)
+        ),
+        structural_unavail AS (
+            SELECT station_id, fuel_type
+            FROM fuel_prices
+            GROUP BY station_id, fuel_type
+            HAVING max(case when is_available then 1 else 0 end) = 0
+        )
+        SELECT fp.fuel_type,
+               count(*) as total,
+               sum(case when not fp.is_available then 1 else 0 end) as unavailable,
+               round(100.0 * sum(case when not fp.is_available then 1 else 0 end)
+                     / count(*), 1) as pct_out,
+               round(avg(case when fp.is_available and fp.price_cpl > 0
+                         then fp.price_cpl end), 1) as avg_price,
+               l.d as snapshot_date
+        FROM fuel_prices fp
+        CROSS JOIN latest l
+        WHERE fp.snapshot_date = l.d
+          AND fp.snapshot_period = l.p
+          AND fp.fuel_type IN ('U91', 'P95', 'P98', 'DSL', 'E10', 'LPG')
+          AND NOT EXISTS (
+              SELECT 1 FROM structural_unavail su
+              WHERE su.station_id = fp.station_id
+                AND su.fuel_type = fp.fuel_type
+          )
+        GROUP BY fp.fuel_type, l.d
+        ORDER BY total DESC
+    """).fetchall()
+    con.close()
+
+    return {
+        "state": state,
+        "date": str(rows[0][5]) if rows else None,
+        "fuel_types": [
+            {
+                "fuel_type": r[0],
+                "total_stations": r[1],
+                "unavailable": r[2],
+                "pct_out": float(r[3]),
+                "avg_price_cpl": float(r[4]) if r[4] else None,
+            }
+            for r in rows
+        ],
+    }

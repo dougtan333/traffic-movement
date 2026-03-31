@@ -26,6 +26,7 @@ import FuelPriceChain from './components/FuelPriceChain/FuelPriceChain';
 import FuelTrafficOverlay from './components/FuelTrafficOverlay/FuelTrafficOverlay';
 import FuelByPostcode from './components/FuelByPostcode/FuelByPostcode';
 import FuelStateAvg from './components/FuelStateAvg/FuelStateAvg';
+import FuelOutages from './components/FuelOutages/FuelOutages';
 import AviationPanel from './components/AviationPanel/AviationPanel';
 import { useTrafficData } from './hooks/useTrafficData';
 import './styles/global.css';
@@ -113,6 +114,11 @@ export default function App() {
             <section className="panel-hero">
               <h3 className="panel-title">VIC fuel prices — state average</h3>
               <FuelStateAvg />
+            </section>
+            <section className="panel-secondary">
+              <h3 className="panel-title">Fuel supply outages</h3>
+              <p className="panel-note">Stations reporting fuel unavailable · excludes stations that don't stock a given type · Servo Saver mandatory reporting</p>
+              <FuelOutages />
             </section>
             <section className="panel-secondary">
               <h3 className="panel-title">Oil to pump — price transmission chain</h3>
