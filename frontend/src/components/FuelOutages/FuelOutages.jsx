@@ -40,6 +40,7 @@ export default function FuelOutages() {
   );
 
   if (loadSum || loadTrend) return <div className="chart-loading">Loading…</div>;
+  if (!summary?.fuel_types && !trend?.data) return <div className="chart-error">Outage data unavailable</div>;
 
   // Pivot trend data: { date, U91: pct_out, DSL: pct_out, ... }
   const chartData = [];
