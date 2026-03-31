@@ -380,7 +380,19 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 
 ---
 
-When adding a new entry, use this format:
+### DEC-036 — Speed data resilience: WAL-safe deploys, Parquet archival, journald retention
+
+**Decision:** Four measures implemented to prevent and diagnose Bluetooth speed data loss:
+1. `scripts/safe_deploy.sh` — mandatory deployment script: stop bluetooth → stop refresh → stop API → clear WAL → git pull → start API → health check → start bluetooth + refresh. Prevents WAL lock conflicts that previously broke both poller and API.
+2. `scripts/archive_speed.py` — incremental Parquet export of speed_observations, wired into daily refresh pipeline. First full archive: 2.77M rows, 13.5 MB ZSTD-compressed.
+3. Journald retention raised from default (~31 MB) to 200 MB / 7 days via `/etc/systemd/journald.conf.d/amip.conf`. Previous retention was too short — gap root causes on Mar 23–24 and Mar 26–27 were undiagnosable.
+4. Poller error handling hardened: explicit `finally` block ensures DuckDB connection is always closed, even on lock errors.
+
+**Rationale:** Two data gaps identified (Mar 23 19:00–Mar 24 22:00, ~27h; Mar 26 21:00–Mar 27 17:00, ~19h) with no journal evidence to diagnose root cause. The Bluetooth API is real-time only — missed polls are permanently lost. On Mar 30, five rapid service restarts (08:05–08:10 CEST) caused WAL lock conflicts that broke the API endpoint entirely. The API was returning 500s until WAL was manually cleared. March 30 data was intact in DB but inaccessible via dashboard.
+
+**Status:** Confirmed ✅
+
+---
 
 ```
 ### DEC-XXX — Short title

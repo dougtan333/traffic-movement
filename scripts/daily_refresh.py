@@ -142,7 +142,13 @@ def refresh_all():
         args=["--append"]
     )
 
-    # 6. Database backup — runs last, after all data updates
+    # 6. Speed data Parquet archive (incremental — only new data since last archive)
+    results["speed_archive"] = run_script(
+        "archive_speed.py",
+        "Speed data Parquet archive (incremental)"
+    )
+
+    # 7. Database backup — runs last, after all data updates
     results["backup"] = run_script(
         "backup_db.py",
         "Database backup (timestamped copy)"
