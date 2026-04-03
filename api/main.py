@@ -118,6 +118,7 @@ async def log_requests(request: Request, call_next):
 # Skips /api/health so it always reflects live DB state.
 # ---------------------------------------------------------------------------
 _NO_CACHE_PATHS = {"/api/health"}
+_origins_set = set(_origins)  # for fast lookup in cache middleware
 
 @app.middleware("http")
 async def cache_middleware(request: Request, call_next):
@@ -128,6 +129,15 @@ async def cache_middleware(request: Request, call_next):
     # Skip health and any other uncacheable paths
     if request.url.path in _NO_CACHE_PATHS:
         return await call_next(request)
+
+    # Build CORS headers for this request (BaseHTTPMiddleware interferes
+    # with CORSMiddleware's ASGI-level header injection, so we add them
+    # directly to both HIT and MISS responses).
+    origin = request.headers.get("origin", "")
+    cors_headers = {}
+    if origin and origin in _origins_set:
+        cors_headers["access-control-allow-origin"] = origin
+        cors_headers["vary"] = "Origin"
 
     # Cache key = path + sorted query string for deterministic keys
     qs = str(request.url.query) if request.url.query else ""
@@ -140,7 +150,7 @@ async def cache_middleware(request: Request, call_next):
         return Response(
             content=body,
             media_type=content_type,
-            headers={"X-Cache": "HIT"},
+            headers={**cors_headers, "X-Cache": "HIT"},
         )
 
     # Miss — forward to endpoint
@@ -164,7 +174,7 @@ async def cache_middleware(request: Request, call_next):
             content=body,
             status_code=200,
             media_type=content_type,
-            headers={"X-Cache": "MISS"},
+            headers={**cors_headers, "X-Cache": "MISS"},
         )
 
     return response
