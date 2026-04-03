@@ -64,7 +64,7 @@ def migrate():
 
     # Check what exists in source
     amip_tables = [r[0] for r in speed_con.execute(
-        "SELECT table_name FROM amip.duckdb_tables() WHERE schema_name='main'"
+        "SELECT table_name FROM duckdb_tables() WHERE database_name='amip'"
     ).fetchall()]
 
     migrated = 0
