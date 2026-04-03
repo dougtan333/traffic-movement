@@ -39,10 +39,11 @@ def get_row_count(con, table):
 
 
 def table_exists(con, table):
-    """Check if a table exists in the connected database."""
+    """Check if a table exists in the CURRENT (non-attached) database."""
     try:
         tables = [r[0] for r in con.execute(
-            "SELECT table_name FROM duckdb_tables() WHERE schema_name='main'"
+            "SELECT table_name FROM duckdb_tables() "
+            "WHERE schema_name='main' AND database_name=current_database()"
         ).fetchall()]
         return table in tables
     except Exception:
