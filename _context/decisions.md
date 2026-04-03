@@ -413,6 +413,15 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 **Status:** Confirmed ✅
 
 ---
+
+### DEC-037 — Watchdog: automated service health + data freshness monitor
+**Decision:** `scripts/watchdog.py` runs every 15 minutes via systemd timer (`amip-watchdog.timer`). Checks 12 items across 4 categories: 3 services (auto-restarts if dead), 4 data freshness thresholds, 4 API endpoint probes (200 + valid JSON), 1 frontend reachability check. All output to journalctl.
+**Rationale:** The VACUUM operation on Apr 3 stopped `amip-bluetooth` and `amip-refresh` but only `amip-api` was restarted. 12h of speed data lost, daily refresh missed. Watchdog would have caught and auto-fixed within 15 minutes. Data freshness thresholds: speed ≤15min, fuel ≤36h, wholesale ≤72h, SCATS ≤45 days.
+**Ruled out:** Cron (systemd timers have better logging via journalctl, dependency management, and survive service restarts), external monitoring (Uptime Robot etc — overkill for current scale, can't restart services).
+**Files:** `scripts/watchdog.py` (new), `/etc/systemd/system/amip-watchdog.service` + `amip-watchdog.timer` (VPS)
+**Status:** Confirmed ✅
+
+---
 ### DEC-XXX — Short title
 **Decision:** What was decided
 **Rationale:** Why
