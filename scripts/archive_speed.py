@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 import duckdb
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = PROJECT_ROOT / "db" / "amip.duckdb"
+DB_PATH = PROJECT_ROOT / "db" / "speed.duckdb"
 ARCHIVE_DIR = PROJECT_ROOT / "db" / "archive" / "speed"
 AEST = timezone(timedelta(hours=10))
 

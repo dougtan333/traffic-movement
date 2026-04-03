@@ -1,10 +1,12 @@
 """
 Speed data API routes — serves Bluetooth travel time data for Melbourne.
+Reads from speed.duckdb (separate from main amip.duckdb) so the
+Bluetooth poller's writes don't block SCATS/fuel/aviation queries.
 Supports filtering by road name, freeway/arterial, and corridor.
 """
 from typing import Optional
 from fastapi import APIRouter, Query
-from ..db import get_connection
+from ..db import get_speed_connection
 
 router = APIRouter(prefix="/api/speed", tags=["speed"])
 
@@ -24,7 +26,7 @@ def _link_filter(road: Optional[str], freeway_only: bool):
 @router.get("/roads")
 def speed_roads():
     """List available roads with link counts, for the filter dropdown."""
-    con = get_connection()
+    con = get_speed_connection()
     rows = con.execute("""
         SELECT road_name, count(*) as links, bool_or(is_freeway) as is_freeway
         FROM bluetooth_links
@@ -48,7 +50,7 @@ def speed_snapshot(
     freeways: bool = Query(False, description="Show freeways only"),
 ):
     """Latest speed snapshot — optionally filtered by road or freeway."""
-    con = get_connection()
+    con = get_speed_connection()
     latest = con.execute("SELECT max(ts_interval) FROM speed_observations").fetchone()[0]
     if not latest:
         con.close()
@@ -130,7 +132,7 @@ def speed_trend(
     """Hourly speed trend over the last N hours — optionally filtered.
     Data is aggregated to hourly averages. Max 336h (14 days).
     Includes period-level distribution summary for the selected duration."""
-    con = get_connection()
+    con = get_speed_connection()
     filt, filt_params = _link_filter(road, freeways)
     join = "JOIN bluetooth_links bl ON so.route_id = bl.link_id"
 

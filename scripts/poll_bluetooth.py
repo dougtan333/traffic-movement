@@ -5,6 +5,9 @@ Polls the Transport Victoria Bluetooth Travel Time API every 5 minutes,
 storing speed/travel-time snapshots in the speed_observations table and
 route reference data in bluetooth_routes.
 
+Writes to db/speed.duckdb (separate from amip.duckdb) so polling writes
+don't block API reads on the main database.
+
 First run fetches routes + links, populates bluetooth_routes, then polls.
 Subsequent runs just poll and append to speed_observations.
 
@@ -41,7 +44,7 @@ except ImportError:
                     os.environ.setdefault(k.strip(), v.strip())
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = PROJECT_ROOT / "db" / "amip.duckdb"
+DB_PATH = PROJECT_ROOT / "db" / "speed.duckdb"
 BASE_URL = "https://api.opendata.transport.vic.gov.au/opendata/roads/bluetooth-travel-time/v1"
 AEST = timezone(timedelta(hours=10))
 POLL_INTERVAL = 300  # 5 minutes

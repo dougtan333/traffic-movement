@@ -394,7 +394,25 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 
 ---
 
-```
+### DEC-034 — API response cache to eliminate poller-induced downtime
+**Decision:** Add in-memory TTL cache (300s / 5 min, matching poll interval) as FastAPI middleware. All GET /api/* responses are cached; /api/health is excluded. Cache is thread-safe, keyed by URL path + query string. Cached responses served with `X-Cache: HIT` header; misses tagged `MISS`. Cache stats exposed via /api/health endpoint.
+**Rationale:** The Bluetooth poller writes to DuckDB every 5 minutes, briefly locking the WAL and blocking all read-only API connections. This caused intermittent chart failures visible to frontend users. Traffic data doesn't change faster than the poll interval, so 5-minute cached responses are always current. Cache absorbs the lock window — users never see an error.
+**Ruled out:** Per-endpoint caching (requires touching every route handler), Redis/external cache (overkill for single-process API), longer poll interval (reduces data freshness).
+**Files:** `api/cache.py` (new), `api/main.py` (middleware + health stats)
+**Status:** Confirmed ✅
+
+---
+
+### DEC-035 — Separate speed.duckdb for Bluetooth poller writes
+**Decision:** Extract `speed_observations`, `bluetooth_routes`, and `bluetooth_links` from `amip.duckdb` into a dedicated `db/speed.duckdb`. The Bluetooth poller writes to `speed.duckdb`; the API reads from it via `get_speed_connection()`. The main `amip.duckdb` is only written to during the daily 7am refresh — effectively read-only during normal operation.
+**Rationale:** Root cause of intermittent downtime was DuckDB's single-writer model: the poller's write lock on `amip.duckdb` blocked all API read connections. Separating the write target eliminates the contention entirely. Combined with DEC-034 (cache), this provides belt-and-suspenders protection — the cache covers the brief speed DB lock, and the main DB is never locked during polling.
+**Ruled out:** Single DB with WAL tuning (DuckDB doesn't support concurrent read+write from separate processes), Postgres (architectural shift too large for this fix).
+**Migration:** `scripts/migrate_speed_db.py` copies tables via ATTACH + CREATE TABLE AS SELECT. Safe to re-run. Old tables remain in amip.duckdb until manually dropped after verification.
+**Files:** `api/db.py` (SPEED_DB_PATH + get_speed_connection), `api/routes/speed.py` (switched to get_speed_connection), `scripts/poll_bluetooth.py` (DB_PATH → speed.duckdb), `scripts/archive_speed.py` (DB_PATH → speed.duckdb), `scripts/migrate_speed_db.py` (new)
+**Deploy sequence:** stop poller → git pull → run migrate_speed_db.py → restart API → start poller
+**Status:** Confirmed ✅
+
+---
 ### DEC-XXX — Short title
 **Decision:** What was decided
 **Rationale:** Why

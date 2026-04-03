@@ -16,10 +16,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
-from api.db import get_connection, DB_PATH
+from api.db import get_connection, get_speed_connection, DB_PATH, SPEED_DB_PATH
 from api.routes import traffic, stations, monitor, speed, transport, tirtl, fuel, aviation
+from api import cache
 
 # ---------------------------------------------------------------------------
 # Logging — structured, timestamp + endpoint + duration
@@ -35,7 +36,7 @@ logger = logging.getLogger("amip")
 # Startup validation (#11) — fail fast if DB or key tables are missing
 # ---------------------------------------------------------------------------
 def _validate_db():
-    """Check DB file exists and critical tables are present."""
+    """Check DB files exist and critical tables are present."""
     if not DB_PATH.exists():
         raise RuntimeError(f"Database not found: {DB_PATH}")
     try:
@@ -57,6 +58,18 @@ def _validate_db():
         )
     logger.info("DB validated: %s (%d tables, including %s)",
                 DB_PATH.name, len(tables), ", ".join(required))
+
+    # Speed DB — warn but don't block startup (main dashboard works without it)
+    if not SPEED_DB_PATH.exists():
+        logger.warning("Speed database not found: %s — /api/speed/* endpoints will fail. "
+                       "Run scripts/migrate_speed_db.py to create it.", SPEED_DB_PATH)
+    else:
+        try:
+            scon = get_speed_connection()
+            scon.close()
+            logger.info("Speed DB validated: %s", SPEED_DB_PATH.name)
+        except Exception as e:
+            logger.warning("Speed DB connection failed: %s — speed endpoints may be unavailable", e)
 
 _validate_db()
 
@@ -90,8 +103,70 @@ async def log_requests(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration_ms = (time.time() - start) * 1000
-    logger.info("%s %s %d %.0fms",
-                request.method, request.url.path, response.status_code, duration_ms)
+    # Tag cached responses in log
+    cached = response.headers.get("X-Cache", "")
+    suffix = f" [CACHE {cached}]" if cached else ""
+    logger.info("%s %s %d %.0fms%s",
+                request.method, request.url.path, response.status_code,
+                duration_ms, suffix)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Response cache middleware — serves cached JSON during DB lock windows.
+# Caches all GET /api/* responses for 5 minutes (matches poll interval).
+# Skips /api/health so it always reflects live DB state.
+# ---------------------------------------------------------------------------
+_NO_CACHE_PATHS = {"/api/health"}
+
+@app.middleware("http")
+async def cache_middleware(request: Request, call_next):
+    # Only cache GET requests under /api/
+    if request.method != "GET" or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+
+    # Skip health and any other uncacheable paths
+    if request.url.path in _NO_CACHE_PATHS:
+        return await call_next(request)
+
+    # Cache key = path + sorted query string for deterministic keys
+    qs = str(request.url.query) if request.url.query else ""
+    cache_key = f"{request.url.path}?{qs}" if qs else request.url.path
+
+    # Check cache
+    hit = cache.get(cache_key)
+    if hit is not None:
+        body, content_type = hit
+        return Response(
+            content=body,
+            media_type=content_type,
+            headers={"X-Cache": "HIT"},
+        )
+
+    # Miss — forward to endpoint
+    response = await call_next(request)
+
+    # Only cache successful JSON responses
+    if response.status_code == 200:
+        # Read the streaming response body
+        body_chunks = []
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, bytes):
+                body_chunks.append(chunk)
+            else:
+                body_chunks.append(chunk.encode("utf-8"))
+        body = b"".join(body_chunks)
+
+        content_type = response.headers.get("content-type", "application/json")
+        cache.put(cache_key, (body, content_type))
+
+        return Response(
+            content=body,
+            status_code=200,
+            media_type=content_type,
+            headers={"X-Cache": "MISS"},
+        )
+
     return response
 
 
@@ -134,4 +209,5 @@ def health():
         "summary_rows": counts[0],
         "stations": counts[1],
         "latest_data": str(counts[2]),
+        "cache": cache.stats(),
     }
