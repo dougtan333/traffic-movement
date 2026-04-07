@@ -8,9 +8,19 @@
  */
 import { useTrafficData } from './useTrafficData';
 
-export function useCalendarEvents(dateFrom = '2025-01-01', dateTo = '2026-12-31') {
+function defaultRange() {
+  const now = new Date();
+  const from = new Date(now);
+  from.setFullYear(from.getFullYear() - 1);
+  const to = new Date(now);
+  to.setMonth(to.getMonth() + 6);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+export function useCalendarEvents(dateFrom, dateTo) {
+  const d = defaultRange();
   const { data, loading } = useTrafficData('/api/traffic/calendar-events', {
-    date_from: dateFrom, date_to: dateTo,
+    date_from: dateFrom || d.from, date_to: dateTo || d.to,
   });
   return { events: data, loading };
 }

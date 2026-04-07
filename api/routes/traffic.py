@@ -124,10 +124,15 @@ def weekly_trend(weeks: int = Query(26, ge=4, le=104)):
 
 @router.get("/daily-counts")
 def daily_counts(
-    date_from: str = Query("2026-02-01"),
-    date_to: str = Query("2026-03-31"),
+    date_from: str = Query(None),
+    date_to: str = Query(None),
 ):
     """Daily total and per-station average with calendar context. Metro core stations only."""
+    # Default to rolling 8-week window ending today
+    if not date_to:
+        date_to = date.today().isoformat()
+    if not date_from:
+        date_from = (date.today() - timedelta(weeks=8)).isoformat()
     con = get_connection()
     rows = con.execute("""
         SELECT d.day,
@@ -289,10 +294,14 @@ def school_holiday_effect():
 
 @router.get("/calendar-events")
 def calendar_events(
-    date_from: str = Query("2025-03-01"),
-    date_to: str = Query("2026-03-31"),
+    date_from: str = Query(None),
+    date_to: str = Query(None),
 ):
     """Public holidays, school holiday periods, and major events for chart annotations."""
+    if not date_from:
+        date_from = (date.today() - timedelta(days=365)).isoformat()
+    if not date_to:
+        date_to = (date.today() + timedelta(days=180)).isoformat()
     con = get_connection()
     holidays = con.execute("""
         SELECT date, event_name FROM calendar

@@ -20,7 +20,7 @@ export const YEAR_COLORS = {
 };
 
 /** Fuel crisis onset date */
-export const CRISIS_DATE = '2026-03-03';
+export const CRISIS_DATE = '2026-03-02';
 
 /** Day name mapping (ISO day-of-week) */
 export const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

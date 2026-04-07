@@ -10,9 +10,22 @@ import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
 import './DailyCountsChart.css';
 
-export default function DailyCountsChart({ dateFrom = '2026-02-01', dateTo = '2026-03-31' }) {
+function rollingDates(weeksBack = 8) {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - weeksBack * 7);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
+
+export default function DailyCountsChart({ dateFrom, dateTo }) {
+  const defaults = rollingDates(8);
+  const from = dateFrom || defaults.from;
+  const to = dateTo || defaults.to;
   const { data, loading, error } = useTrafficData('/api/traffic/daily-counts', {
-    date_from: dateFrom, date_to: dateTo,
+    date_from: from, date_to: to,
   });
 
   if (loading) return <div className="chart-loading">Loading daily counts…</div>;
