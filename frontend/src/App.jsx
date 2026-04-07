@@ -164,6 +164,10 @@ export default function App() {
 
         {tab === 'explorer' && (
           <section className="panel-hero">
+            <p className="panel-note">
+              Each dot is a SCATS traffic signal site across Melbourne's metro area. Colour indicates average weekday volume — darker sites carry more traffic.
+              Tap a site to see its hourly profile, road name, and suburb. Data from VIC Department of Transport SCATS loop detectors, top-25% stations by daily volume.
+            </p>
             <div className="station-explorer">
               <StationMap
                 onSelectStation={setSelectedStation}

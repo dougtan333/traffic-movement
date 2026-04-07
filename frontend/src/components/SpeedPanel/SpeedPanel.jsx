@@ -144,6 +144,7 @@ export default function SpeedPanel() {
         <div className="speed-metric">
           <span className="sp-label">Updated</span>
           <span className="sp-value sp-time">
+            {new Date(timestamp).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}{' '}
             {new Date(timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
