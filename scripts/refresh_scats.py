@@ -79,15 +79,36 @@ def find_latest_zip_url() -> tuple[str, str]:
     return url, month_label
 
 
+def get_portal_size(url: str) -> int:
+    """Return Content-Length from a HEAD request, or 0 if unavailable."""
+    try:
+        head = requests.head(url, timeout=15, allow_redirects=True)
+        return int(head.headers.get('content-length', 0))
+    except Exception:
+        return 0
+
+
 def download_zip(url: str, month_label: str) -> Path:
-    """Download the ZIP to staging. Skips if already downloaded."""
+    """Download the ZIP to staging.
+
+    Skips if already downloaded AND the local size matches the portal size.
+    Re-downloads if the portal version is larger (i.e. more days have been
+    appended to the same monthly ZIP since it was first cached).
+    """
     STAGING_DIR.mkdir(parents=True, exist_ok=True)
     zip_path = STAGING_DIR / f"traffic_signal_volume_data_{month_label}.zip"
 
     if zip_path.exists():
-        size_mb = zip_path.stat().st_size / (1024 * 1024)
-        print(f"  Already downloaded: {zip_path.name} ({size_mb:.0f} MB)")
-        return zip_path
+        local_size = zip_path.stat().st_size
+        portal_size = get_portal_size(url)
+        if portal_size > 0 and portal_size > local_size:
+            diff_mb = (portal_size - local_size) / (1024 * 1024)
+            print(f"  Portal ZIP is {diff_mb:.1f} MB larger than cached — re-downloading")
+            zip_path.unlink()
+        else:
+            size_mb = local_size / (1024 * 1024)
+            print(f"  Already downloaded (up to date): {zip_path.name} ({size_mb:.0f} MB)")
+            return zip_path
 
     print(f"  Downloading {zip_path.name}...")
     resp = requests.get(url, stream=True, timeout=120)
