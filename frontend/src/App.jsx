@@ -1,5 +1,5 @@
 /**
- * App — main layout for the AMIP dashboard.
+ * App — main layout for Melbourne Traffic Monitor.
  * Victoria-only. Tab navigation and chart panels.
  */
 import { useState } from 'react';
@@ -51,7 +51,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="app-brand">
-          <h1>Traffic Movement</h1>
+          <h1>Melbourne Traffic Monitor</h1>
           <h2>Victorian transport intelligence</h2>
         </div>
       </header>

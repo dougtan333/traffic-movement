@@ -77,8 +77,8 @@ _validate_db()
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="AMIP API",
-    description="Australia Mobility Intelligence Platform — Traffic Data API",
+    title="Melbourne Traffic Monitor API",
+    description="Victorian transport data API — traffic counts, speed, fuel, aviation",
     version="0.1.0",
 )
 
