@@ -147,8 +147,8 @@ export default function App() {
               <PTPatronageChart />
             </section>
             <section className="panel-secondary">
-              <h3 className="panel-title">Vehicle mix — cars vs trucks (TIRTL sensors, March 2026)</h3>
-              <p className="panel-note">288 TIRTL sites · infra-red wheelbase classification · Austroads vehicle categories</p>
+              <h3 className="panel-title">Vehicle mix — cars vs trucks (TIRTL sensors)</h3>
+              <p className="panel-note">302 TIRTL sites · infra-red wheelbase classification · Austroads vehicle categories</p>
               <VehicleMixChart />
             </section>
             <section className="panel-secondary">

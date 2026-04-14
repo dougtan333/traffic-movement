@@ -26,7 +26,9 @@ export default function VehicleMixChart() {
   if (error) return <div className="chart-error">Error: {error}</div>;
   if (!data?.data?.length) return null;
 
-  const chartData = data.data.map(d => ({
+  const chartData = data.data
+    .filter(d => d.date >= '2026-02-01')
+    .map(d => ({
     ...d,
     label: new Date(d.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', weekday: 'short' }),
   }));
