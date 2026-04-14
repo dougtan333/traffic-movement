@@ -442,6 +442,20 @@ Wired into `daily_refresh.py` as step 4b (after SCATS, before summaries) with 60
 
 **Outcome:** 5 months of data ingested (Nov 2025–Mar 2026), ~15M+ rows. Vehicle mix chart now shows full history.
 
+### DEC-039 — Automated PT patronage refresh via file-size check
+
+**Date:** 2026-04-15
+**Status:** Implemented
+
+**Context:** PT patronage data (monthly totals + day-type breakdown) was manually ingested from downloaded CSVs. The VIC Open Data portal publishes updated CSVs monthly with a 2-month lag (~20th of each month). Data had gone stale at Nov 2025 while Dec 2025 and Jan 2026 were available. November figures were also revised.
+
+**Decision:** Built `refresh_pt.py` that:
+- HEAD-checks two CKAN resource URLs for file-size changes
+- Downloads updated CSVs and does full table replace (small files, ~10KB each)
+- Tracks state in `data_vic_new/pt_tracking.json`
+
+Wired into `daily_refresh.py` as step 4c (after TIRTL, before summaries). Daily check is lightweight — two HEAD requests when unchanged.
+
 ### DEC-XXX — Short title
 **Decision:** What was decided
 **Rationale:** Why

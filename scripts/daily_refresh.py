@@ -24,11 +24,12 @@ Not refreshed here (separate cadence):
   - Bluetooth speed:  continuous poller (poll_bluetooth.py --loop)
   - Fuel stations:    monthly (run ingest_fuel_stations.py)
   - Calendar/events:  as needed (run populate_calendar.py)
-  - PT/Fleet data:    annual (run ingest_vic_transport.py)
+  - PT/Fleet data:    annual (run ingest_vic_transport.py for vehicle registrations)
 
 Monthly refresh (runs daily but only picks up new data when source publishes):
   - SCATS:    VIC traffic signal volume data (refresh_scats.py, incremental)
   - TIRTL:    VIC vehicle classification + speed (refresh_tirtl.py, file-size check)
+  - PT:       VIC public transport patronage (refresh_pt.py, file-size check, 2-month lag)
   - Aviation: BITRE airport traffic, routes, OTP (ingest_aviation.py)
 """
 
@@ -152,6 +153,13 @@ def refresh_all():
         "refresh_tirtl.py",
         "TIRTL vehicle classification + speed",
         timeout=600
+    )
+
+    # 4c. PT patronage — monthly CSVs from VIC portal (2-month lag)
+    #     File-size comparison, full table replace. Small files (~10KB).
+    results["pt_patronage"] = run_script(
+        "refresh_pt.py",
+        "PT patronage (monthly totals + day-type)"
     )
 
     # 5. Append new days to summary tables (after any data ingestion)
