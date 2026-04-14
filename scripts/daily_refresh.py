@@ -12,7 +12,7 @@ per operation so they coexist with the poller's write lock pattern.
 
 Usage:
   python scripts/daily_refresh.py          # run once
-  python scripts/daily_refresh.py --loop   # run daily at 7am AEST
+  python scripts/daily_refresh.py --loop   # run daily at 4am AEST
 
 Data sources refreshed:
   - Retail fuel:  Service VIC Servo Saver (daily snapshot, 24h delayed)
@@ -194,32 +194,32 @@ def refresh_all():
 def main():
     parser = argparse.ArgumentParser(description="AMIP daily data refresh")
     parser.add_argument("--loop", action="store_true",
-                        help="Run daily at 7am AEST")
+                        help="Run daily at 4am AEST")
     args = parser.parse_args()
 
     if not args.loop:
         success = refresh_all()
         sys.exit(0 if success else 1)
 
-    # Loop mode: run full refresh at 7am AEST, fuel-only at 5pm AEST
-    log("Starting daily refresh loop (7am full + 5pm fuel)")
+    # Loop mode: run full refresh at 4am AEST, fuel-only at 5pm AEST
+    log("Starting daily refresh loop (4am full + 5pm fuel)")
     while True:
         now = datetime.now(AEST)
 
-        # Calculate next event: 7am (full) or 5pm (fuel PM)
-        target_7am = now.replace(hour=7, minute=0, second=0, microsecond=0)
+        # Calculate next event: 4am (full) or 5pm (fuel PM)
+        target_4am = now.replace(hour=4, minute=0, second=0, microsecond=0)
         target_5pm = now.replace(hour=17, minute=0, second=0, microsecond=0)
-        if now >= target_7am:
-            target_7am += timedelta(days=1)
+        if now >= target_4am:
+            target_4am += timedelta(days=1)
         if now >= target_5pm:
             target_5pm += timedelta(days=1)
 
         # Pick whichever is sooner
-        if target_5pm < target_7am:
+        if target_5pm < target_4am:
             target = target_5pm
             job_type = "fuel_pm"
         else:
-            target = target_7am
+            target = target_4am
             job_type = "full"
 
         wait_secs = (target - now).total_seconds()

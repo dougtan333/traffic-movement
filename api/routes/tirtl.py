@@ -18,9 +18,22 @@ VEHICLE_CLASSES = {
 
 @router.get("/vehicle-mix")
 def vehicle_mix():
-    """Daily vehicle class breakdown — cars vs trucks vs buses over time."""
+    """Daily vehicle class breakdown — cars vs trucks vs buses over time.
+    Excludes incomplete tail days where site count drops below 50% of typical."""
     con = get_connection()
     rows = con.execute("""
+        WITH daily_sites AS (
+            SELECT ts_interval::DATE as day, COUNT(DISTINCT site_id) as n_sites
+            FROM tirtl_counts GROUP BY 1
+        ),
+        typical AS (
+            SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY n_sites) as median_sites
+            FROM daily_sites
+        ),
+        valid_days AS (
+            SELECT day FROM daily_sites, typical
+            WHERE n_sites >= median_sites * 0.5
+        )
         SELECT
             ts_interval::DATE as date,
             CASE
@@ -33,6 +46,7 @@ def vehicle_mix():
             END as category,
             SUM(volume) as total
         FROM tirtl_counts
+        WHERE ts_interval::DATE IN (SELECT day FROM valid_days)
         GROUP BY 1, 2
         ORDER BY 1, 2
     """).fetchall()
