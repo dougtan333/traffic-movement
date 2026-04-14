@@ -22,13 +22,13 @@ Data sources refreshed:
 
 Not refreshed here (separate cadence):
   - Bluetooth speed:  continuous poller (poll_bluetooth.py --loop)
-  - TIRTL data:       as released (run ingest_tirtl.py)
   - Fuel stations:    monthly (run ingest_fuel_stations.py)
   - Calendar/events:  as needed (run populate_calendar.py)
   - PT/Fleet data:    annual (run ingest_vic_transport.py)
 
 Monthly refresh (runs daily but only picks up new data when source publishes):
   - SCATS:    VIC traffic signal volume data (refresh_scats.py, incremental)
+  - TIRTL:    VIC vehicle classification + speed (refresh_tirtl.py, file-size check)
   - Aviation: BITRE airport traffic, routes, OTP (ingest_aviation.py)
 """
 
@@ -52,7 +52,7 @@ def log(msg):
     print(f"[{ts}] {msg}")
 
 
-def run_script(name, description, args=None):
+def run_script(name, description, args=None, timeout=300):
     """Run a Python script and report success/failure."""
     script = SCRIPTS_DIR / name
     if not script.exists():
@@ -67,7 +67,7 @@ def run_script(name, description, args=None):
         result = subprocess.run(
             cmd,
             cwd=str(PROJECT_ROOT),
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True, timeout=timeout,
         )
         if result.returncode == 0:
             # Print last few lines of output for summary
@@ -82,7 +82,7 @@ def run_script(name, description, args=None):
                 log(f"    {line}")
             return False
     except subprocess.TimeoutExpired:
-        log(f"  TIMEOUT {name} (>300s)")
+        log(f"  TIMEOUT {name} (>{timeout}s)")
         return False
     except Exception as e:
         log(f"  ERROR {name}: {e}")
@@ -144,6 +144,14 @@ def refresh_all():
     results["scats"] = run_script(
         "refresh_scats.py",
         "SCATS traffic counts (incremental)"
+    )
+
+    # 4b. TIRTL vehicle classification + speed — monthly ZIPs from VIC portal
+    #     Uses file-size comparison to detect updated files. ~100MB per month.
+    results["tirtl"] = run_script(
+        "refresh_tirtl.py",
+        "TIRTL vehicle classification + speed",
+        timeout=600
     )
 
     # 5. Append new days to summary tables (after any data ingestion)

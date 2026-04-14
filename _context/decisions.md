@@ -422,6 +422,26 @@ Added to `daily_refresh.py` as job #4a (between aviation and summaries) with `--
 **Status:** Confirmed ✅
 
 ---
+### DEC-038 — Automated TIRTL refresh via CKAN API + file-size check
+
+**Date:** 2026-04-14
+**Status:** Implemented
+
+**Context:** TIRTL vehicle classification data was manually ingested once (March 1–13 only). The VIC portal actually has 5 months of monthly ZIPs (Nov 2025–Mar 2026), each with its own CKAN resource ID. Files are updated mid-month and finalised around the 1st of the following month when they move to the "historical" page. The portal serves the same file regardless of URL filename — resource UUID is the key.
+
+**Decision:** Built `refresh_tirtl.py` that:
+- Queries the CKAN API (`package_show?id=tirtl-traffic-counts`) to discover all ZIP resources
+- Uses HEAD request file-size comparison (same pattern as SCATS) to detect updates
+- Downloads changed ZIPs, extracts daily CSVs, ingests via INSERT OR IGNORE
+- Tracks state in `data_tirtl/tirtl_tracking.json`
+- Also refreshes TIRTL Sites reference table on each run
+
+Wired into `daily_refresh.py` as step 4b (after SCATS, before summaries) with 600s timeout. Added `timeout` parameter to `run_script()` for this purpose.
+
+**Update cadence:** Monthly. DTP publishes current month on main page, updates mid-month, finalises ~1st of next month. Daily check via file-size is lightweight (HEAD request only).
+
+**Outcome:** 5 months of data ingested (Nov 2025–Mar 2026), ~15M+ rows. Vehicle mix chart now shows full history.
+
 ### DEC-XXX — Short title
 **Decision:** What was decided
 **Rationale:** Why
