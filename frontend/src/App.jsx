@@ -62,14 +62,14 @@ export default function App() {
         {tab === 'monitor' && (
           <>
             <section className="panel-hero">
-              <h3 className="panel-title">Weekly traffic — metro core stations (top 25% by volume)</h3>
-              <p className="panel-note">SCATS loop detectors · top 25% by volume · weekday average</p>
+              <h3 className="panel-title">Weekly traffic — metro core stations (967 sites · fixed Feb 2026 cohort)</h3>
+              <p className="panel-note">SCATS loop detectors · same 967 stations every week · weekday average</p>
               <MetricCards data={monitorData} />
               <WeeklyTrendChart />
             </section>
             <section className="panel-secondary">
               <h3 className="panel-title">Daily traffic — metro core stations</h3>
-              <p className="panel-note">Daily vehicle count across top-25% stations · weekdays solid, weekends faded</p>
+              <p className="panel-note">Daily vehicle count · same 967 stations every day · weekdays solid, weekends faded</p>
               <DailyCountsChart />
             </section>
             <section className="panel-secondary">
@@ -165,7 +165,7 @@ export default function App() {
         {tab === 'explorer' && (
           <section className="panel-hero">
             <p className="panel-note">
-              ~970 SCATS traffic signal sites across Melbourne's metro area, filtered to the top 25% by daily vehicle volume.
+              ~970 SCATS traffic signal sites across Melbourne's metro area. These are the 967 highest-volume sites as of February 2026 — the same fixed set used across all traffic charts for consistent comparison.
               Tap a site to see its weekday hourly profile, road name, and suburb. Source: VIC Department of Transport loop detectors at signalised intersections.
             </p>
             <div className="station-explorer">
@@ -191,7 +191,7 @@ export default function App() {
             </section>
             <section className="panel-secondary">
               <h3 className="panel-title">Peak and quiet days — metro core stations</h3>
-              <p className="panel-note">Busiest and quietest weekdays since Jan 2024 · top-25% stations · holidays and events flagged</p>
+              <p className="panel-note">Busiest and quietest weekdays since Jan 2024 · 967 fixed stations (Feb 2026 cohort) · holidays and events flagged</p>
               <PeakDaysTable />
             </section>
             <section className="panel-secondary">

@@ -456,6 +456,14 @@ Wired into `daily_refresh.py` as step 4b (after SCATS, before summaries) with 60
 
 Wired into `daily_refresh.py` as step 4c (after TIRTL, before summaries). Daily check is lightweight — two HEAD requests when unchanged.
 
+### DEC-040 — Metro core cohort frozen at Feb 2026 baseline
+**Decision:** `metro_core_stations` is a one-time materialisation. `materialize_metro_core.py` now skips silently if the table already exists. `--force` flag required for any intentional rebaseline. The comment in `daily_refresh.py` step 0 updated to reflect the no-op behaviour.
+**Rationale:** Previously the script ran `CREATE OR REPLACE TABLE` every morning, dropping and recreating the table. While the result was always identical (fixed Parquet file, fixed Feb 2026 dates), this caused two problems: (1) a brief window each morning where `INNER JOIN metro_core_stations` in API queries would fail or return empty results; (2) if `hourly_counts_2026.parquet` were ever patched, the cohort would silently change, breaking trend continuity with no warning. The cohort is intended to be a permanent fixed panel — the same roads measured the same way, forever, so week-on-week and year-on-year comparisons are honest.
+**Ruled out:** Removing step 0 from `daily_refresh.py` entirely — kept as a no-op so first deploy on a fresh DB still materializes the table automatically without a manual step.
+**Current cohort:** ~967 stations, P75+ avg weekday daily volume, 1–28 Feb 2026. To rebaseline intentionally, run `python scripts/materialize_metro_core.py --force` and record the new station count here.
+**Files changed:** `scripts/materialize_metro_core.py`, `scripts/daily_refresh.py`
+**Status:** Confirmed ✅
+
 ### DEC-XXX — Short title
 **Decision:** What was decided
 **Rationale:** Why

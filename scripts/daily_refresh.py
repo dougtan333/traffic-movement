@@ -108,10 +108,11 @@ def refresh_all():
 
     results = {}
 
-    # 0. Materialize metro core stations (must run before API serves requests)
+    # 0. Metro core stations — frozen Feb 2026 cohort (DEC-040).
+    #    No-op if already materialized; one-time cost on first deploy.
     results["metro_core"] = run_script(
         "materialize_metro_core.py",
-        "Metro core station cohort (P75+ baseline)"
+        "Metro core station cohort (no-op if already materialized)"
     )
 
     # 1. Retail fuel prices (AM snapshot — PM runs separately at 5pm)
