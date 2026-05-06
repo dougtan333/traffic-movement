@@ -8,6 +8,12 @@ route reference data in bluetooth_routes.
 Writes to db/speed.duckdb (separate from amip.duckdb) so polling writes
 don't block API reads on the main database.
 
+Architecture: fetch-then-write.  The API fetch (~2 min) runs without
+holding a DB connection.  The DB is opened only for the batch insert
+(~2-3 sec), then checkpointed and closed immediately.  This minimises
+the DuckDB file-lock window so the FastAPI speed endpoints can read
+the DB between polls without WAL conflicts.
+
 First run fetches routes + links, populates bluetooth_routes, then polls.
 Subsequent runs just poll and append to speed_observations.
 
@@ -111,11 +117,11 @@ def fetch_and_store_routes(con, api_key):
     print(f"  Inserted {inserted} routes into bluetooth_routes")
 
 
-def poll_links(con, api_key):
+def fetch_link_data(api_key):
     """
-    Fetch all Bluetooth links with current speed/travel-time stats.
-    Each link is a segment between two Bluetooth receivers.
-    Appends one row per link to speed_observations.
+    Fetch all Bluetooth links with current speed/travel-time stats from the API.
+    Returns a list of tuples ready for batch insert — no DB connection needed.
+    This is the slow step (~2 min) so it runs WITHOUT holding a DB lock.
     """
     now_aest = datetime.now(AEST)
     ts_rounded = now_aest.replace(second=0, microsecond=0)
@@ -128,7 +134,6 @@ def poll_links(con, api_key):
     try:
         data = api_get("/links", api_key)
     except requests.exceptions.HTTPError as e:
-        # If /links doesn't work, try individual route links
         if e.response.status_code == 404:
             print("  /links endpoint not found — trying individual link IDs...")
             data = None
@@ -137,12 +142,11 @@ def poll_links(con, api_key):
 
     if data is None:
         print("  WARNING: Could not fetch link data")
-        return 0
+        return now_aest_str, []
 
-    # API returns a flat list of link objects
     links = data if isinstance(data, list) else data.get("links", [])
 
-    inserted = 0
+    rows = []
     for link in links:
         link_id = str(link.get("id", ""))
         if not link_id:
@@ -162,10 +166,8 @@ def poll_links(con, api_key):
         # Use the API's interval_start timestamp if available
         interval_ts = stats.get("interval_start")
         if interval_ts:
-            # Parse ISO format and convert to naive AEST string
-            from datetime import datetime as dt
             try:
-                parsed = dt.fromisoformat(interval_ts)
+                parsed = datetime.fromisoformat(interval_ts)
                 ts_str = parsed.strftime("%Y-%m-%d %H:%M:%S")
             except (ValueError, TypeError):
                 ts_str = now_aest_str
@@ -179,21 +181,32 @@ def poll_links(con, api_key):
         speed_int = int(round(speed)) if speed is not None else None
         tt_int = int(round(travel_time)) if travel_time is not None else None
         delay_int = int(round(delay)) if delay is not None else None
-        # Use excess_delay as congestion proxy — clamp to schema range
         cong_float = round(max(-99.99, min(99.99, float(excess_delay))), 2) if excess_delay is not None else None
         length_int = int(round(length_m)) if length_m is not None else None
 
+        rows.append((link_id, ts_str, speed_int, tt_int, delay_int,
+                      cong_float, data_status, length_int))
+
+    return now_aest_str, rows
+
+
+def store_link_data(con, now_aest_str, rows):
+    """
+    Batch-insert pre-fetched link data into speed_observations.
+    Holds the DB lock for only seconds, not minutes.
+    """
+    inserted = 0
+    for row in rows:
         try:
             con.execute("""
                 INSERT OR IGNORE INTO speed_observations
                 (route_id, ts_interval, speed_kmh, travel_time_sec, delay_sec,
                  congestion_index, data_status, route_length_m)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, [link_id, ts_str, speed_int, tt_int, delay_int,
-                  cong_float, data_status, length_int])
+            """, list(row))
             inserted += 1
         except Exception as e:
-            print(f"  WARNING: Failed to insert link {link_id}: {e}")
+            print(f"  WARNING: Failed to insert link {row[0]}: {e}")
 
     print(f"  Stored {inserted} speed observations for {now_aest_str}")
     return inserted
@@ -218,29 +231,32 @@ def main():
     if args.loop:
         print(f"\nStarting continuous polling (every {POLL_INTERVAL}s). Ctrl+C to stop.\n")
         while True:
-            con = None
             try:
-                con = duckdb.connect(str(DB_PATH))
-                poll_links(con, api_key)
-                con.execute("CHECKPOINT")
+                # Step 1: Fetch from API — slow (~2 min), NO DB lock held
+                now_aest_str, rows = fetch_link_data(api_key)
+
+                if rows:
+                    # Step 2: Write to DB — fast (~2-3 sec), lock held briefly
+                    con = duckdb.connect(str(DB_PATH))
+                    try:
+                        store_link_data(con, now_aest_str, rows)
+                        con.execute("CHECKPOINT")
+                    finally:
+                        con.close()
             except requests.exceptions.RequestException as e:
                 print(f"  NETWORK ERROR: {e} — will retry in {POLL_INTERVAL}s")
             except duckdb.IOException as e:
                 print(f"  DB LOCK ERROR: {e} — will retry in {POLL_INTERVAL}s")
             except Exception as e:
                 print(f"  ERROR: {e} — will retry in {POLL_INTERVAL}s")
-            finally:
-                if con is not None:
-                    try:
-                        con.close()
-                    except Exception:
-                        pass
             time.sleep(POLL_INTERVAL)
     else:
-        con = duckdb.connect(str(DB_PATH))
-        poll_links(con, api_key)
-        con.execute("CHECKPOINT")
-        con.close()
+        now_aest_str, rows = fetch_link_data(api_key)
+        if rows:
+            con = duckdb.connect(str(DB_PATH))
+            store_link_data(con, now_aest_str, rows)
+            con.execute("CHECKPOINT")
+            con.close()
 
     print("Done.")
 
