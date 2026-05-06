@@ -41,17 +41,19 @@ def get_connection() -> duckdb.DuckDBPyConnection:
 
 
 def get_speed_connection() -> duckdb.DuckDBPyConnection:
-    """Return a read-only connection to the speed/Bluetooth database.
-    The Bluetooth poller writes here every 5 minutes, so brief WAL
-    lock conflicts are expected. The API-level response cache (api/cache.py)
-    covers users during these windows; retries here are a belt-and-suspenders
-    fallback."""
-    for attempt in range(5):
+    """Return a connection to the speed/Bluetooth database.
+    Uses normal mode (not read_only) so the API can open the DB while
+    the Bluetooth poller holds a WAL lock.  DuckDB allows multiple
+    normal connections — reads work fine alongside a single writer.
+    The API never writes to speed.duckdb, so there is no conflict.
+    read_only=True was the root cause of persistent lock failures:
+    that mode refuses to open when *any* WAL file exists."""
+    for attempt in range(3):
         try:
-            return duckdb.connect(str(SPEED_DB_PATH), read_only=True)
+            return duckdb.connect(str(SPEED_DB_PATH))
         except (duckdb.IOException, Exception) as e:
-            if "lock" in str(e).lower() and attempt < 4:
-                time.sleep(1)
+            if "lock" in str(e).lower() and attempt < 2:
+                time.sleep(2)
             else:
                 raise
 
