@@ -10,20 +10,12 @@ import { useTrafficData } from '../../hooks/useTrafficData';
 import { CITY_COLORS, CRISIS_DATE } from '../../constants';
 import './DailyCountsChart.css';
 
-function rollingDates(weeksBack = 8) {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - weeksBack * 7);
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
-}
+// Fixed start date — daily chart grows forward from here as new data lands.
+const DAILY_START_DATE = '2026-02-01';
 
 export default function DailyCountsChart({ dateFrom, dateTo }) {
-  const defaults = rollingDates(8);
-  const from = dateFrom || defaults.from;
-  const to = dateTo || defaults.to;
+  const from = dateFrom || DAILY_START_DATE;
+  const to = dateTo || new Date().toISOString().slice(0, 10);
   const { data, loading, error } = useTrafficData('/api/traffic/daily-counts', {
     date_from: from, date_to: to,
   });
