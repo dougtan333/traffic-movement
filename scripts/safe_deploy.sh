@@ -2,8 +2,21 @@
 # safe_deploy.sh — WAL-safe deployment for AMIP
 # Always use this script instead of raw systemctl restarts.
 # Usage: sudo /opt/amip/scripts/safe_deploy.sh [--pull]
+#
+# LINUX VPS ONLY. Every path here is /opt/amip and every restart is systemctl,
+# neither of which exists on the Mac. It is left as-is because it belongs to the
+# VPS, which Task 14 decommissions; the Mac equivalent is
+# `deploy/launchd/install.sh --load` plus `launchctl bootout`/`bootstrap`, and
+# service state is queried through scripts/service_control.py. The guard below
+# stops it half-executing if it is ever run on the wrong machine.
 
 set -euo pipefail
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "safe_deploy.sh is for the Linux VPS only (systemd + /opt/amip)." >&2
+    echo "On the Mac use deploy/launchd/install.sh and launchctl instead." >&2
+    exit 1
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
