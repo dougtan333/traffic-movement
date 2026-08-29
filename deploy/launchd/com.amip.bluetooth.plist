@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>PathState</key>
+		<dict>
+			<key>/Volumes/T9/Projects/Traffic Movement/db/amip.duckdb</key>
+			<true/>
+		</dict>
+	</dict>
+	<key>Label</key>
+	<string>com.amip.bluetooth</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Volumes/T9/Projects/Traffic Movement/venv/bin/python3</string>
+		<string>scripts/poll_bluetooth.py</string>
+		<string>--loop</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.bluetooth.log</string>
+	<key>StandardOutPath</key>
+	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.bluetooth.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>WorkingDirectory</key>
+	<string>/Volumes/T9/Projects/Traffic Movement</string>
+</dict>
+</plist>

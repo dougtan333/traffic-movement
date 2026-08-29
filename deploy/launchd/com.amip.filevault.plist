@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>PathState</key>
+		<dict>
+			<key>/Volumes/T9/Projects/filevault/app.py</key>
+			<true/>
+		</dict>
+	</dict>
+	<key>Label</key>
+	<string>com.amip.filevault</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Volumes/T9/Projects/filevault/venv/bin/gunicorn</string>
+		<string>-w</string>
+		<string>4</string>
+		<string>-b</string>
+		<string>127.0.0.1:5050</string>
+		<string>app:app</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.filevault.log</string>
+	<key>StandardOutPath</key>
+	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.filevault.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>WorkingDirectory</key>
+	<string>/Volumes/T9/Projects/filevault</string>
+</dict>
+</plist>
