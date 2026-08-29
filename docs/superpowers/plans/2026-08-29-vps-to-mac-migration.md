@@ -960,10 +960,19 @@ Expected: the first matches rule 0 → `http://127.0.0.1:8000`; the second match
 The credentials JSON cannot be re-downloaded — losing it means deleting and recreating the tunnel, which changes the UUID and every DNS record.
 
 ```bash
-cp ~/.cloudflared/*.json ~/.cloudflared/cert.pem "/Volumes/T9/Projects/Traffic Movement/db/backups/cloudflared-credentials-backup/"
+DEST="$HOME/Documents/amip-tunnel-credentials"
+mkdir -p "$DEST" && chmod 700 "$DEST"
+cp -p ~/.cloudflared/*.json ~/.cloudflared/cert.pem "$DEST/"
 ```
 
-Create the directory first if needed. Confirm `db/backups/` is gitignored before copying — these are secrets.
+**The backup goes on the internal disk, NOT on T9.** T9 is unencrypted (`diskutil info
+/Volumes/T9` → `Encrypted: No`, `Owners: Disabled`), so copying a secret from the
+FileVault-protected internal disk onto T9 moves it in the wrong direction — and POSIX modes
+are not even enforced on that volume. `~/Documents` is encrypted and covered by Time Machine.
+
+The tunnel credential is the highest-value secret in this migration: it can route traffic for
+the domain, and Cloudflare will not re-issue it. Verify the copies with `shasum -a 256`
+against the originals before relying on them.
 
 ---
 
