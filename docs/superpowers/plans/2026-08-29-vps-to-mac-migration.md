@@ -651,10 +651,21 @@ The local `.env` has three keys; the VPS has five. `CORS_ORIGINS` is the one tha
 
 **Files:**
 - Modify: `/Volumes/T9/Projects/Traffic Movement/.env` (gitignored — never committed)
+- Modify: `api/main.py` (add the `.env` loader — see Step 5)
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: a `.env` with all five keys, read by every agent via `EnvironmentFile` equivalent (the scripts load it themselves)
+- Produces: a `.env` with all five keys, and an API process that actually reads it
+
+**Ruling R1 (pre-flight scan, recorded in the SDD ledger):** on the VPS, systemd
+injected `.env` into every service via `EnvironmentFile=`. launchd has no equivalent
+directive, and `api/main.py:88` only does `os.environ.get("CORS_ORIGINS", _default_origins)`
+where the default is localhost-only. Putting `CORS_ORIGINS` in `.env` therefore fixes
+nothing on its own — the API would silently reject every request from melbtraffic.com.
+The pollers are unaffected: `poll_bluetooth.py` and `poll_fuel_prices.py` already load
+`.env` themselves. Step 5 makes the API do the same. Putting the values in the plists'
+`EnvironmentVariables` was rejected: `deploy/launchd/` is version-controlled, and that
+would commit secrets to git.
 
 - [ ] **Step 1: Compare local and VPS keys**
 
@@ -697,7 +708,63 @@ git check-ignore -v .env && echo "gitignored, correct"
 
 Expected: a line showing the matching `.gitignore` rule. If this prints nothing, `.env` is tracked and must be removed from the index before any further commit.
 
-No commit — `.env` is deliberately untracked.
+- [ ] **Step 5: Make the API load `.env` itself**
+
+`api/main.py` already imports `os` and `Path`. Add this immediately after the existing
+import block (after the `from api import cache` line), mirroring the loader already used
+in `scripts/poll_bluetooth.py:39-50` — `api/main.py` sits one level below the repo root,
+exactly like the scripts, so the same path expression is correct:
+
+```python
+# Environment — systemd injected .env via EnvironmentFile= on the VPS; launchd has no
+# equivalent, so the API loads .env itself. Same pattern as scripts/poll_bluetooth.py.
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    # If python-dotenv not installed, read .env manually
+    def load_dotenv():
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+load_dotenv()
+```
+
+`load_dotenv()` must be called BEFORE the `_origins` line at `api/main.py:88`, since that
+line reads `os.environ` at import time. `os.environ.setdefault` means a variable already
+set in the real environment always wins over the file.
+
+- [ ] **Step 6: Verify the API picks up CORS_ORIGINS from the file**
+
+```bash
+cd "/Volumes/T9/Projects/Traffic Movement"
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from api.main import _origins
+print('origins:', _origins)
+assert 'https://melbtraffic.com' in _origins, 'CORS_ORIGINS did not reach the app'
+print('OK — .env reached the FastAPI app')
+"
+```
+
+Expected: the three production origins printed, then `OK`. This is the check that would
+have caught the defect at cutover instead of during it.
+
+- [ ] **Step 7: Commit the code change**
+
+```bash
+git add api/main.py
+git commit -m "fix: load .env in the API process
+
+launchd has no EnvironmentFile equivalent, so the API must read .env itself
+or CORS_ORIGINS never reaches it and the production frontend is rejected."
+```
+
+`.env` itself is deliberately untracked and is never committed.
 
 ---
 
