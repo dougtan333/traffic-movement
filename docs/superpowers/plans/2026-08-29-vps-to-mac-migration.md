@@ -808,19 +808,28 @@ fdesetup status
 
 This determines whether unattended recovery is achievable at all. If it reports **`FileVault is On`**, macOS demands the unlock password at startup and automatic login cannot proceed until a human types it — no launchd configuration changes that. Record the result and tell the user before continuing: with FileVault on, a power cut means downtime until someone unlocks the Mac, and the plan's reboot test (Task 12) will fail by design rather than by fault.
 
-- [ ] **Step 4: Enable automatic login**
+- [ ] **Step 4: Accept the FileVault limitation (decided 2026-08-29)**
 
-Verified off at planning time (`com.apple.loginwindow autoLoginUser` unset). This is a GUI setting and cannot be scripted reliably on modern macOS:
+Measured: `fdesetup status` → **FileVault is On**, and `autoLoginUser` is unset.
 
-**User action:** System Settings → Users & Groups → "Automatically log in as" → select the `doug` account.
+Automatic login is therefore **not achievable and not attempted**. With FileVault on, macOS
+requires the boot volume to be unlocked by a human before any login occurs, so no LaunchAgent
+— and no LaunchDaemon either — runs until someone types the password. macOS does not offer
+the auto-login setting at all while FileVault is enabled.
 
-Then confirm:
+**Decision (user, 2026-08-29): keep FileVault on and accept manual unlock.** The disk holds
+live API keys and ~46 GB of data; encryption is worth more than unattended power-cut recovery
+on a project where downtime is acceptable.
 
-```bash
-defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser
-```
+Consequences to carry forward:
+- After an **unplanned power cut**, the site is down until the Mac is unlocked by hand.
+  `autorestart 1` still helps: the machine powers itself back on and waits at the unlock
+  screen rather than staying off.
+- For a **planned reboot**, use `sudo fdesetup authrestart`. This performs a one-time
+  authenticated restart that unlocks the volume on the next boot, so the full stack returns
+  with no interaction. This is the supported way to reboot this Mac.
 
-Expected: `doug`
+No configuration change is made in this step — it records a constraint.
 
 - [ ] **Step 5: Record the outcome in the spec**
 
@@ -1061,11 +1070,29 @@ Expected: `302` (redirect to the login page) or `200`. Anything in the 500 range
 
 `app.py` hardcodes the Flask `secret_key` (line 34) and an `admin` password (line 53) as literals in source. The app is about to be republished at a new public hostname, which makes this the natural moment to deal with it.
 
-**Recommended: move both to `.env` and rotate them.** The existing password has sat in plaintext in a file that has been read during this migration; rotating costs nothing at the same moment the values move, and it means the credentials that end up in `.env` have never been anywhere else.
+**DECIDED (user, 2026-08-29): move both to `.env` AND rotate them.**
 
-The alternatives are moving them without rotating (fixes the source-literal problem, keeps a known-exposed password) or migrating as-is and handling it separately (fastest to cutover, leaves a public app with credentials in source).
+The existing password sat in plaintext in a file read during this migration, so the values that
+end up in `.env` must be ones that have never been anywhere else.
 
-**This needs the user's decision before Task 11 publishes the hostname.** If the answer is to move them, the change is: read `FILEVAULT_SECRET_KEY` and `FILEVAULT_ADMIN_PASSWORD` from the environment in `app.py`, add both to `/Volumes/T9/Projects/filevault/.env`, and add an `EnvironmentVariables` entry or a `.env` load to the agent. Re-run Step 4's smoke test afterwards.
+The change:
+1. In `app.py`, replace the `secret_key` literal (line 34) and the `admin` password literal
+   (line 53) with reads of `FILEVAULT_SECRET_KEY` and `FILEVAULT_ADMIN_PASSWORD`, loaded from
+   `/Volumes/T9/Projects/filevault/.env` using the same try/except dotenv-fallback pattern as
+   `scripts/poll_bluetooth.py:39-50`. The password must still be passed through
+   `generate_password_hash()` exactly as before — only its source changes.
+2. Both variables are **required**. If either is missing, the app must raise at startup with a
+   clear message rather than falling back to a default — a silent fallback to a weak or empty
+   secret on a publicly reachable app is worse than a crash.
+3. Generate both values fresh with `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+   Write them to `/Volumes/T9/Projects/filevault/.env` (chmod 600). Never print either value to
+   a terminal or a report.
+4. No plist change is needed — `app.py` loads `.env` itself, exactly as the API does after
+   Ruling R1.
+5. Re-run Step 4's smoke test, then verify a real login succeeds with the new password.
+
+The new password must be communicated to the user by telling them where to read it, not by
+printing it.
 
 ---
 
@@ -1270,7 +1297,17 @@ cat /tmp/pre-reboot-agents.txt
 
 - [ ] **Step 2: Reboot**
 
-**User action:** `sudo reboot`. Do not log in manually — the point is to prove automatic login and the agents recover without a human. If FileVault was found On in Task 5 Step 3, this test cannot pass unattended; enter the unlock password and record that the limitation is real.
+**User action:** `sudo fdesetup authrestart`.
+
+This is the reboot path this Mac must use, given FileVault is on (Task 5 Step 4). It asks for
+the unlock password once, up front, then restarts and unlocks the volume automatically on the
+way back up — so the login, the T9 mount, the PathState guards and all seven agents still have
+to recover with no further interaction. That is exactly what this test needs to prove.
+
+Do NOT use a plain `sudo reboot` for this test: it would stop at the FileVault unlock screen
+and prove nothing about the agents. A plain reboot is what an unplanned power cut looks like,
+and its outcome is already known and accepted — the site stays down until someone unlocks the
+Mac by hand.
 
 - [ ] **Step 3: After the Mac comes back, verify without touching anything**
 

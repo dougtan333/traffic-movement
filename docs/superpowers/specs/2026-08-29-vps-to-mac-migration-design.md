@@ -121,7 +121,8 @@ be dropped entirely.
 | D2 | Migrate filevault too; cancel the VPS outright | 23 MB of code and a small document store; nothing else depends on the VPS |
 | D3 | Transfer all ~46.5 GB including `db/backups` | T9 has room; backup history is not regenerable |
 | D4 | Repoint `com.amip.bluetooth-archive` at the T9 path and keep it running | It is an independent redundant archive, not a duplicate of `archive_speed.py` |
-| D5 | Enable automatic login | LaunchAgents start at login, not boot; without it an unattended reboot leaves everything down |
+| D5 | ~~Enable automatic login~~ **Superseded 2026-08-29: keep FileVault on, accept manual unlock** | `fdesetup status` returned On. macOS does not offer auto-login while FileVault is enabled — the volume needs a human before any login, so no agent runs until then. The disk holds live API keys and ~46 GB of data, and downtime is acceptable on this project, so encryption wins. Planned reboots use `sudo fdesetup authrestart`; an unplanned power cut means downtime until the Mac is unlocked by hand. |
+| D11 | filevault credentials move to `.env` **and** are rotated | Decided 2026-08-29. The old password sat in plaintext in a file read during this migration, and the app becomes publicly reachable again at a new hostname. |
 | D6 | LaunchAgents, not LaunchDaemons | Consistent with the Mac's existing projects; avoids root and pre-login volume-mount ordering |
 | D7 | Plists version-controlled in `deploy/launchd/`, symlinked into `~/Library/LaunchAgents` | The current untracked plist drifted into a stale path unnoticed |
 | D8 | Project venv at `venv/`, separate venv for filevault | Removes `--break-system-packages`; preserves filevault's isolation from the VPS |
