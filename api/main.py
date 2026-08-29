@@ -22,25 +22,10 @@ from api.db import get_connection, get_speed_connection, DB_PATH, SPEED_DB_PATH
 from api.routes import traffic, stations, monitor, speed, transport, tirtl, fuel, aviation
 from api import cache
 
-# Environment — systemd injected .env via EnvironmentFile= on the VPS; launchd has no
-# equivalent, so the API loads .env itself. Same pattern as scripts/poll_bluetooth.py.
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    # If python-dotenv not installed, read .env manually
-    def load_dotenv():
-        env_path = Path(__file__).resolve().parent.parent / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
-
-load_dotenv()
-
 # ---------------------------------------------------------------------------
-# Logging — structured, timestamp + endpoint + duration
+# Logging — structured, timestamp + endpoint + duration.
+# Configured before anything else so .env loading can report its own failures;
+# launchd sends this stream to logs/com.amip.api.log.
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +33,47 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("amip")
+
+# ---------------------------------------------------------------------------
+# Environment — systemd injected .env via EnvironmentFile= on the VPS; launchd has no
+# equivalent, so the API loads .env itself. Same pattern as scripts/poll_bluetooth.py.
+#
+# This used to fail silently (finding I1): a missing or malformed .env left
+# CORS_ORIGINS unset, the app fell back to localhost-only origins, /api/health
+# still returned 200 and the watchdog — which probes with `requests`, sending no
+# Origin header and triggering no preflight — reported everything green. The
+# only visible symptom was melbtraffic.com rendering empty charts. Both the
+# resolved origins and any failure to reach .env are now logged, so one grep of
+# logs/com.amip.api.log answers "why is CORS wrong".
+# ---------------------------------------------------------------------------
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    # This is the branch that actually runs — python-dotenv is not installed in
+    # the venv and is not in requirements.txt.
+    def load_dotenv(dotenv_path=ENV_PATH):
+        """Minimal .env reader: KEY=VALUE lines, # comments, no interpolation."""
+        env_path = Path(dotenv_path)
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+if ENV_PATH.exists():
+    logger.info("Loading environment from %s", ENV_PATH)
+else:
+    logger.error(
+        ".env NOT FOUND at %s — every setting falls back to its built-in default, "
+        "including CORS_ORIGINS. If this is the production host, melbtraffic.com "
+        "will receive no Access-Control-Allow-Origin header and its charts will "
+        "render empty while /api/health still returns 200. Restore the file and "
+        "restart the API.", ENV_PATH)
+
+load_dotenv(ENV_PATH)
 
 # ---------------------------------------------------------------------------
 # Startup validation (#11) — fail fast if DB or key tables are missing
@@ -102,7 +128,20 @@ app = FastAPI(
 # CORS — origins from env (comma-separated) with local dev fallbacks.
 # Production: set CORS_ORIGINS="https://amip.example.com" in .env
 _default_origins = "http://localhost:5173,http://localhost:5174,http://localhost:3000"
-_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+_cors_env = os.environ.get("CORS_ORIGINS")
+_origins = [o.strip() for o in (_cors_env or _default_origins).split(",") if o.strip()]
+
+# Log the resolved list either way. A fallback to the dev defaults is an error,
+# not a warning: on the production host it means the public site gets no CORS
+# header, and nothing else in the stack notices (finding I1).
+if _cors_env:
+    logger.info("CORS origins (from CORS_ORIGINS): %s", ", ".join(_origins))
+else:
+    logger.error(
+        "CORS_ORIGINS is not set — falling back to local dev origins only: %s. "
+        "Any browser request from a production hostname will be blocked. "
+        "Check that %s exists and contains a CORS_ORIGINS= line.",
+        ", ".join(_origins), ENV_PATH)
 
 app.add_middleware(
     CORSMiddleware,
