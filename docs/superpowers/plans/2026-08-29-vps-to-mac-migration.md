@@ -980,7 +980,9 @@ Expected: matching sizes — approximately 4.1 GB, 2.4 GB, 11 GB, 29 GB.
 ./venv/bin/python3 -c "
 import duckdb
 con = duckdb.connect('db/amip.duckdb', read_only=True)
-print('hourly_counts:', con.execute('SELECT count(*) FROM hourly_counts').fetchone()[0])
+print('daily_station_summary:', con.execute('SELECT count(*) FROM daily_station_summary').fetchone()[0])
+print('stations:', con.execute('SELECT count(*) FROM stations').fetchone()[0])
+print('latest day:', con.execute('SELECT max(day) FROM daily_station_summary').fetchone()[0])
 con.close()
 con = duckdb.connect('db/speed.duckdb', read_only=True)
 print('speed_observations:', con.execute('SELECT count(*) FROM speed_observations').fetchone()[0])
@@ -989,7 +991,14 @@ con.close()
 "
 ```
 
-Expected: a non-zero hourly count in the tens of millions, a non-zero speed count, and a latest observation within minutes of now (the VPS poller is still running at this point).
+Expected (measured against the transferred file on 2026-08-29): `daily_station_summary`
+842,896 rows, `stations` 3,964, plus a non-zero speed count and a latest speed observation
+within minutes of now (the VPS poller is still running at this point).
+
+Note the table names: the live schema has no `hourly_counts` table — the raw hourly data is
+served through `daily_station_summary` and `hourly_city_summary`, and the date column on
+`daily_station_summary` is `day`, not `date`. The `/api/health` endpoint queries
+`daily_station_summary` and `stations`, so the Task 9/10 health-parity checks are unaffected.
 
 ---
 
