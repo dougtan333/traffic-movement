@@ -148,7 +148,11 @@ followed by `install.sh`.
 | `com.amip.watchdog` | `venv/bin/python scripts/watchdog.py --verbose` | `StartInterval 900`, oneshot |
 
 Each carries `EnvironmentVariables: PYTHONUNBUFFERED=1` and sends stdout/stderr to a
-log file. The six AMIP agents use `WorkingDirectory /Volumes/T9/Projects/Traffic
+log file under `~/Library/Logs/amip/` — **not** the repo's `logs/` directory. Logs
+cannot live beside the code on T9: launchd resolves StandardOutPath/StandardErrorPath
+before the program runs, and a log path on the external volume fails the job at
+startup with exit 78 (EX_CONFIG), before anything is written anywhere (see §9). The
+six AMIP agents use `WorkingDirectory /Volumes/T9/Projects/Traffic
 Movement`; `com.amip.filevault` uses `/Volumes/T9/Projects/filevault` and guards on
 its own path rather than on `amip.duckdb` (see §5).
 
@@ -292,6 +296,7 @@ Before cancelling the VPS, all of the following must hold:
 | `bluetooth_archive.duckdb` has a gap from 2026-03-27 to cutover | Unrecoverable from the API (latest-only), but `speed.duckdb` covers the period and can backfill the archive if wanted |
 | Stale local `db/amip.duckdb` (269 MB, March) overwritten or confused with the real one | Move it aside before the rsync rather than letting rsync merge into it |
 | ~~filevault storage location misidentified~~ | **Resolved 2026-08-29** — `/opt/filevault/uploads`, 2 files, 32 KB (§1) |
+| ~~Agent logs cannot live on T9~~ | **Resolved 2026-08-29** — launchd resolves StandardOutPath/StandardErrorPath before the program runs; a log path on the external T9 volume fails the job at startup with exit 78 (EX_CONFIG) and no log is written. Confirmed by isolation on the real `com.amip.bluetooth` plist. Fixed by moving all agent logs to `~/Library/Logs/amip/` on the internal, FileVault-protected disk (`deploy/launchd/generate.py`) |
 | Boot volume encrypted, so auto-login cannot complete after an unattended reboot | Encryption state checked during pre-stage; if encrypted, unattended recovery is not achievable and downtime after a power cut lasts until manual unlock |
 | filevault credentials are hardcoded in `app.py` and the app becomes publicly reachable again at a new hostname | Flagged as an open question below — moving them to `.env` is a small change but alters app behaviour, so it needs a decision rather than a silent fix |
 | Cloudflare Tunnel token/credentials lost | Tunnel credentials backed up alongside `.env`; recreating a tunnel is a DNS change |

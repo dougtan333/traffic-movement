@@ -1247,7 +1247,7 @@ bash deploy/launchd/install.sh --load
 launchctl list | grep com.amip
 ```
 
-Expected: seven rows. The first column is the PID — a number means running, `-` means loaded but not currently running (correct only for `com.amip.watchdog`, which is interval-driven). The second column is the last exit status; anything non-zero on a KeepAlive agent means it is crash-looping, so check its log in `logs/<label>.log`.
+Expected: seven rows. The first column is the PID — a number means running, `-` means loaded but not currently running (correct only for `com.amip.watchdog`, which is interval-driven). The second column is the last exit status; anything non-zero on a KeepAlive agent means it is crash-looping, so check its log in `~/Library/Logs/amip/<label>.log`.
 
 - [ ] **Step 4: Verify health parity against the VPS baseline**
 
@@ -1319,7 +1319,7 @@ curl -s https://api.melbtraffic.com/api/health
 curl -s -o /dev/null -w "%{http_code}\n" https://files.melbtraffic.com/
 ```
 
-Expected: Cloudflare proxy IPs from `dig`; the same health JSON as `localhost:8000` returned; `302` or `200` from filevault. If the health call returns Cloudflare error 1033, the tunnel agent is not running — check `logs/com.amip.tunnel.log`.
+Expected: Cloudflare proxy IPs from `dig`; the same health JSON as `localhost:8000` returned; `302` or `200` from filevault. If the health call returns Cloudflare error 1033, the tunnel agent is not running — check `~/Library/Logs/amip/com.amip.tunnel.log`.
 
 - [ ] **Step 3: Update the Pages environment variable**
 
@@ -1471,7 +1471,7 @@ con.close()
 "
 ```
 
-Expected: 24 hours, each with a similar row count. A missing or thin hour means the poller stalled — check `logs/com.amip.bluetooth.log`.
+Expected: 24 hours, each with a similar row count. A missing or thin hour means the poller stalled — check `~/Library/Logs/amip/com.amip.bluetooth.log`.
 
 - [ ] **Step 3: Verify the archive poller resumed**
 
@@ -1492,7 +1492,7 @@ Expected: a recent `latest`. There is a five-month hole from 2026-03-27 (when th
 `daily_refresh.py` runs at 4am and 5pm AEST and orchestrates `archive_speed.py` and `backup_db.py`.
 
 ```bash
-tail -40 logs/com.amip.refresh.log
+tail -40 ~/Library/Logs/amip/com.amip.refresh.log
 ls -lt db/backups/ | head -5
 ```
 
@@ -1501,7 +1501,7 @@ Expected: a completed refresh cycle in the log, and a backup file newer than cut
 - [ ] **Step 5: Verify two consecutive clean watchdog cycles**
 
 ```bash
-tail -60 logs/com.amip.watchdog.log
+tail -60 ~/Library/Logs/amip/com.amip.watchdog.log
 ```
 
 Expected: two runs 15 minutes apart with all services `OK` and the API and frontend checks now passing against the melbtraffic.com hostnames.
@@ -1544,7 +1544,7 @@ ssh amip "sudo tar czf - /opt/filevault" > db/backups/filevault-final-$(date +%Y
 
 - [ ] **Step 2: Rewrite `DEPLOY.md` for the local topology**
 
-Replace the VPS provisioning content with: the launchd architecture diagram from the spec, how to start and stop agents (`launchctl bootout` / `bootstrap` via `deploy/launchd/install.sh`), how to regenerate plists after a path change (`python3 deploy/launchd/generate.py`), where logs live (`logs/<label>.log`), how the tunnel is configured, and how to restore from `db/backups/`. Delete the Contabo, Caddy, DuckDNS and systemd sections.
+Replace the VPS provisioning content with: the launchd architecture diagram from the spec, how to start and stop agents (`launchctl bootout` / `bootstrap` via `deploy/launchd/install.sh`), how to regenerate plists after a path change (`python3 deploy/launchd/generate.py`), where logs live (`~/Library/Logs/amip/<label>.log`), how the tunnel is configured, and how to restore from `db/backups/`. Delete the Contabo, Caddy, DuckDNS and systemd sections.
 
 - [ ] **Step 3: Fix the stale paths and stale platform references**
 
@@ -1553,7 +1553,7 @@ Replace the VPS provisioning content with: the launchd architecture diagram from
 Two source docstrings carry the same staleness and are part of this step:
 
 - `api/main.py` line 9 — `From project root: /Users/doug/Projects/Traffic Movement`.
-- `scripts/watchdog.py` — the module docstring still says "Runs every 15 minutes via systemd timer", "captured by journalctl" and "Designed to run as: systemd timer". On the Mac it is `com.amip.watchdog` with `StartInterval 900`, logging to `logs/com.amip.watchdog.log`.
+- `scripts/watchdog.py` — the module docstring still says "Runs every 15 minutes via systemd timer", "captured by journalctl" and "Designed to run as: systemd timer". On the Mac it is `com.amip.watchdog` with `StartInterval 900`, logging to `~/Library/Logs/amip/com.amip.watchdog.log`.
 
 ```bash
 grep -rn "/Users/doug/Projects" RUNTIME.md DEPLOY.md api/ scripts/
