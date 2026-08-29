@@ -6,9 +6,12 @@ Refreshes all daily data sources in the correct order:
   2. Brent crude + AUD/USD exchange rates (EIA + RBA)
   3. AIP Terminal Gate Prices (wholesale, may timeout)
 
-The Bluetooth speed poller runs separately and continuously —
-this script does NOT touch it. These scripts use connect/disconnect
-per operation so they coexist with the poller's write lock pattern.
+The Bluetooth speed poller runs separately and continuously. This
+script stops it around its write-heavy jobs so they are not fighting the
+poller for the DuckDB write lock, and starts it again afterwards. That
+supervision goes through scripts/service_control.py, so it works under
+launchd on the Mac and systemd on the VPS — it used to shell out to
+`sudo -n systemctl` directly, which was a silent no-op on macOS.
 
 Usage:
   python scripts/daily_refresh.py          # run once
@@ -47,10 +50,73 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 AEST = timezone(timedelta(hours=10))
 
+sys.path.insert(0, str(SCRIPTS_DIR))
+import service_control  # noqa: E402  (needs SCRIPTS_DIR on sys.path first)
+
+# Resolved once: which init system supervises this host, and what it calls the
+# Bluetooth poller. launchd on the Mac, systemd on the VPS.
+CONTROLLER = service_control.get_controller()
+BLUETOOTH_SERVICE = service_control.service_id_for(CONTROLLER, "bluetooth")
+
 
 def log(msg):
     ts = datetime.now(AEST).strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}")
+
+
+def stop_bluetooth_poller():
+    """Stop the Bluetooth poller so write-heavy jobs get the DuckDB write lock.
+
+    Returns True when the supervisor accepted the stop. A failure is logged
+    loudly rather than swallowed: the whole point of the stop is that
+    archive_speed.py and build_summaries.py are not racing the poller for
+    speed.duckdb's WAL lock, so a silent failure corrupts nothing but does
+    produce the lock contention this sequencing exists to avoid.
+
+    On macOS the agents carry a KeepAlive PathState guard, so launchd relaunches
+    the poller after its 10s ThrottleInterval. The stop buys a clean window at
+    the head of each write, not an indefinite shutdown.
+    """
+    log(f"  Stopping Bluetooth poller ({BLUETOOTH_SERVICE}) for DB writes...")
+    try:
+        ok = CONTROLLER.stop(BLUETOOTH_SERVICE)
+    except Exception as e:
+        log(f"  WARNING: could not stop {BLUETOOTH_SERVICE}: {e}")
+        ok = False
+    if not ok:
+        log(f"  WARNING: stop of {BLUETOOTH_SERVICE} did not succeed "
+            f"({service_control.describe_state(_service_state())}) — "
+            f"DB writes may contend with the poller for the WAL lock")
+    time.sleep(2)  # let the poller close its connection before writes begin
+    return ok
+
+
+def start_bluetooth_poller():
+    """Start the Bluetooth poller again after the writes are done.
+
+    Returns True when the supervisor accepted the start. A failure here means
+    speed polling is down until the watchdog's next 15-minute pass, so it is
+    logged as an error rather than a warning.
+    """
+    log(f"  Restarting Bluetooth poller ({BLUETOOTH_SERVICE})...")
+    try:
+        ok = CONTROLLER.start(BLUETOOTH_SERVICE)
+    except Exception as e:
+        log(f"  ERROR: could not start {BLUETOOTH_SERVICE}: {e}")
+        ok = False
+    if not ok:
+        log(f"  ERROR: start of {BLUETOOTH_SERVICE} did not succeed "
+            f"({service_control.describe_state(_service_state())}) — "
+            f"speed polling is DOWN until the watchdog restarts it")
+    return ok
+
+
+def _service_state():
+    """The poller's supervisor state, or STATE_UNKNOWN if the query itself fails."""
+    try:
+        return CONTROLLER.state(BLUETOOTH_SERVICE)
+    except Exception:
+        return service_control.STATE_UNKNOWN
 
 
 def run_script(name, description, args=None, timeout=300):
@@ -101,10 +167,7 @@ def refresh_all():
     log("=" * 60)
 
     # Stop Bluetooth poller to release DB write lock
-    log("  Stopping Bluetooth poller for DB writes...")
-    subprocess.run(["sudo", "-n", "systemctl", "stop", "amip-bluetooth"],
-                   capture_output=True, timeout=10)
-    time.sleep(2)
+    stop_bluetooth_poller()
 
     results = {}
 
@@ -183,9 +246,7 @@ def refresh_all():
     )
 
     # Restart Bluetooth poller now that all writes are done
-    log("  Restarting Bluetooth poller...")
-    subprocess.run(["sudo", "-n", "systemctl", "start", "amip-bluetooth"],
-                   capture_output=True, timeout=10)
+    start_bluetooth_poller()
 
     # Summary
     log("=" * 60)
@@ -243,13 +304,10 @@ def main():
             log("=" * 60)
             log("FUEL PM SNAPSHOT")
             log("=" * 60)
-            subprocess.run(["sudo", "-n", "systemctl", "stop", "amip-bluetooth"],
-                           capture_output=True, timeout=10)
-            time.sleep(2)
+            stop_bluetooth_poller()
             run_script("poll_fuel_prices.py", "Retail fuel prices (PM)",
                        args=["--period", "PM"])
-            subprocess.run(["sudo", "-n", "systemctl", "start", "amip-bluetooth"],
-                           capture_output=True, timeout=10)
+            start_bluetooth_poller()
             log("=" * 60)
 
 

@@ -20,7 +20,6 @@ Designed to run as: systemd timer (every 15 min)
 
 import sys
 import json
-import subprocess
 import time
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -95,31 +94,45 @@ def check_services(result, auto_restart=True):
 
     Service supervision is delegated to scripts/service_control.py so this
     function reads the same on the VPS (systemd) and the Mac (launchd).
+
+    The failure detail carries the supervisor's state rather than a flat
+    "not running", because "the agent was never loaded — T9 was not mounted at
+    login" and "the process keeps dying" need different responses from a human
+    and used to log identically (finding I7).
     """
     controller = service_control.get_controller()
     for svc in service_control.service_ids(controller):
         try:
-            active = controller.is_active(svc)
+            state = controller.state(svc)
         except Exception as e:
             result.fail(f"service/{svc}", f"check failed: {e}")
             continue
 
-        if active:
+        if state == service_control.STATE_RUNNING:
             result.ok(f"service/{svc}", "active")
             continue
 
-        result.fail(f"service/{svc}", "not running")
+        detail = f"not running — {service_control.describe_state(state)}"
+        result.fail(f"service/{svc}", detail)
         if not auto_restart:
             continue
 
+        log(f"  {svc}: {detail}")
         log(f"  Restarting {svc}...")
         try:
-            controller.start(svc)
+            started = controller.start(svc)
             time.sleep(3)  # give the supervisor a moment to report the new state
-            if controller.is_active(svc):
+            after = controller.state(svc)
+            if after == service_control.STATE_RUNNING:
                 log(f"  {svc} restarted successfully")
             else:
-                log(f"  {svc} FAILED to restart")
+                # `started` is the restart command's own exit status; `after` is
+                # what the supervisor says a moment later. Both are logged
+                # because a start that reports success but leaves the service
+                # down is a different fault from one that never ran.
+                log(f"  {svc} FAILED to restart "
+                    f"(start command {'succeeded' if started else 'failed'}; "
+                    f"now {service_control.describe_state(after)})")
         except Exception as e:
             log(f"  {svc} restart error: {e}")
 
