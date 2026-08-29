@@ -22,6 +22,23 @@ from api.db import get_connection, get_speed_connection, DB_PATH, SPEED_DB_PATH
 from api.routes import traffic, stations, monitor, speed, transport, tirtl, fuel, aviation
 from api import cache
 
+# Environment — systemd injected .env via EnvironmentFile= on the VPS; launchd has no
+# equivalent, so the API loads .env itself. Same pattern as scripts/poll_bluetooth.py.
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    # If python-dotenv not installed, read .env manually
+    def load_dotenv():
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+load_dotenv()
+
 # ---------------------------------------------------------------------------
 # Logging — structured, timestamp + endpoint + duration
 # ---------------------------------------------------------------------------
