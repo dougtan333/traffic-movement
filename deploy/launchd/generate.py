@@ -57,7 +57,12 @@ AGENTS = [
     {
         "label": "com.amip.bluetooth-archive",
         "args": [PY, "archive-poller/bluetooth_archive.py", "--loop"],
-        "cwd": str(REPO / "archive-poller"),
+        # cwd is the repo root like every other repo-based agent, NOT the
+        # archive-poller subdirectory — the arg already carries that prefix, and
+        # pairing both would resolve to archive-poller/archive-poller/. The script
+        # derives its DB, log and .env paths from __file__, so cwd is behaviourally
+        # irrelevant; uniformity here is what prevents that class of mismatch.
+        "cwd": str(REPO),
         "guard": GUARD_REPO,
     },
     {

@@ -32,6 +32,6 @@
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>WorkingDirectory</key>
-	<string>/Volumes/T9/Projects/Traffic Movement/archive-poller</string>
+	<string>/Volumes/T9/Projects/Traffic Movement</string>
 </dict>
 </plist>
