@@ -34,11 +34,20 @@ archiving and backups need no separate scheduling after the move.
 | `/opt/amip/db/speed.duckdb` | 2.4 GB |
 | `/opt/amip/db/archive` | 11 GB |
 | `/opt/amip/db/backups` | 29 GB |
-| `/opt/filevault` | 23 MB |
-| `/home/amip/doc-repository` | 52 KB |
+| `/opt/filevault` | 23 MB (22.9 MB is its venv — see below) |
+| `/opt/filevault/uploads` — **live document store** | 32 KB, 2 files |
+| `/home/amip/doc-repository` | 52 KB — install source, `uploads/` empty |
 
 Total ≈ 46.5 GB. The VPS is the source of truth; the local copies are stale
 (`db/amip.duckdb` is 269 MB, dated March).
+
+**filevault storage — resolved 2026-08-29.** `app.py` line 39 sets
+`UPLOAD_FOLDER = <app dir>/uploads`, so the live store is `/opt/filevault/uploads`:
+32 KB across two files (a `.docx` and `.md` of the same stakeholder meeting notes).
+`/home/amip/doc-repository` is the *install source* the app was deployed from — same
+`app.py`, empty `uploads/`. Of filevault's 23 MB, 22.9 MB is its venv, which is
+rebuilt on the Mac. The real payload to migrate is roughly 56 KB: `app.py`,
+`templates/`, `requirements.txt` and the two uploaded documents.
 
 ### Mac
 
@@ -146,10 +155,14 @@ its own path rather than on `amip.duckdb` (see §5).
 
 ### Sleep
 
-`sudo pmset -a sleep 0 standby 0 autopoweroff 0 autorestart 1`
+Measured 2026-08-29: `sleep 0`, `standby 0` and `disksleep 0` are **already set** on
+this Mac, so the poller is not currently at risk of sleep-induced holes. The only
+outstanding change is power-failure recovery:
 
-Without this the Mac sleeps and the 5-minute poller develops silent holes.
-`autorestart 1` brings the machine back after a power interruption.
+`sudo pmset -a autorestart 1`   *(currently 0)*
+
+`autopoweroff` is not exposed on this machine and must be omitted — including it makes
+`pmset` reject the whole command.
 
 ### External volume mount ordering
 
@@ -166,8 +179,14 @@ guard against its own DB path.
 
 ### Boot without login
 
-LaunchAgents start at login. Automatic login is enabled (D5) so an unattended reboot
-restores the full stack.
+LaunchAgents start at login. Automatic login is **not currently enabled** (verified
+2026-08-29: `com.apple.loginwindow autoLoginUser` is unset), so enabling it is a real
+step, not a no-op. With D5 applied, an unattended reboot restores the full stack.
+
+Note the interaction with FileVault disk encryption: if the boot volume is encrypted,
+macOS requires the unlock password at startup and automatic login cannot proceed until
+that is entered. This must be checked during pre-stage — if the disk is encrypted,
+unattended reboot recovery does not work regardless of the auto-login setting.
 
 ---
 
@@ -205,11 +224,15 @@ Bulk-first, so the polling gap is minutes rather than hours. The site stays up
 through steps 1–2.
 
 1. **Pre-stage (VPS still serving)**
-   - Install `cloudflared`; create and authenticate a named tunnel
+   - Install `cloudflared` (`brew install cloudflared` — formula confirmed available;
+     Homebrew 6.0.11 present at `/opt/homebrew/bin/brew`); create and authenticate the
+     `melbtraffic` tunnel
+   - `sudo pmset -a autorestart 1`; enable automatic login; confirm boot-volume
+     encryption state
    - Build `venv/` and the filevault venv
-   - Locate filevault's document storage directory and confirm what must come across
-     (`/opt/filevault` is 23 MB including its venv; `~/doc-repository` is 52 KB —
-     which of these is live storage is unconfirmed and must be established here)
+   - ~~Locate filevault's document storage~~ — **resolved, see §1**: copy
+     `/opt/filevault/{app.py,templates,requirements.txt,uploads}` (~56 KB); the venv is
+     rebuilt locally and `~/doc-repository` is a redundant install source
    - Reconcile `.env` (add `CORS_ORIGINS`, `AMIP_DEBUG`) from the VPS copy
    - `rsync` all ~46.5 GB down to T9, and `/opt/filevault` to
      `/Volumes/T9/Projects/filevault`
@@ -253,14 +276,33 @@ Before cancelling the VPS, all of the following must hold:
 | Bluetooth polling gap during freeze | Freeze window is minutes; gap is bounded and visible in `speed_observations` |
 | `bluetooth_archive.duckdb` has a gap from 2026-03-27 to cutover | Unrecoverable from the API (latest-only), but `speed.duckdb` covers the period and can backfill the archive if wanted |
 | Stale local `db/amip.duckdb` (269 MB, March) overwritten or confused with the real one | Move it aside before the rsync rather than letting rsync merge into it |
-| filevault storage location misidentified, documents lost | Explicitly established in step 1 before the VPS is cancelled |
+| ~~filevault storage location misidentified~~ | **Resolved 2026-08-29** — `/opt/filevault/uploads`, 2 files, 32 KB (§1) |
+| Boot volume encrypted, so auto-login cannot complete after an unattended reboot | Encryption state checked during pre-stage; if encrypted, unattended recovery is not achievable and downtime after a power cut lasts until manual unlock |
+| filevault credentials are hardcoded in `app.py` and the app becomes publicly reachable again at a new hostname | Flagged as an open question below — moving them to `.env` is a small change but alters app behaviour, so it needs a decision rather than a silent fix |
 | Cloudflare Tunnel token/credentials lost | Tunnel credentials backed up alongside `.env`; recreating a tunnel is a DNS change |
 
 ---
 
-## 10. Out of scope
+## 10. Open question — filevault credentials
+
+`/opt/filevault/app.py` hardcodes both the Flask `secret_key` and an `admin` password
+as literals in source (lines 34 and 53). The file is not in git, which is the only
+reason this has not been committed to a repository so far.
+
+The migration republishes this app at `files.melbtraffic.com`, so it is the natural
+moment to move both values into `.env` alongside the other secrets — but that changes
+app behaviour and the credentials themselves, so it is not something to fold in
+silently. Three options: move them to `.env` as part of the migration, move them and
+also rotate them, or migrate as-is and handle it separately.
+
+**This needs a decision before filevault is republished.**
+
+---
+
+## 11. Out of scope
 
 - Any change to the Cloudflare Pages frontend beyond the API base URL
 - Schema, query or ingestion-logic changes
 - Backfilling the `bluetooth_archive.duckdb` gap (noted as optional follow-up)
 - Rewriting filevault (moved as-is; it is not in git and stays that way for now)
+- Backfilling filevault into version control
