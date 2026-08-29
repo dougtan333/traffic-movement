@@ -21,10 +21,12 @@ Designed to run as: systemd timer (every 15 min)
 import sys
 import json
 import subprocess
+import time
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 import duckdb
+import service_control
 
 try:
     import requests
@@ -37,11 +39,11 @@ AMIP_DB = PROJECT_ROOT / "db" / "amip.duckdb"
 SPEED_DB = PROJECT_ROOT / "db" / "speed.duckdb"
 AEST = timezone(timedelta(hours=10))
 
-API_BASE = "https://melbtraffic.duckdns.org"
-FRONTEND_URL = "https://traffic-movement.pages.dev"
+API_BASE = "https://api.melbtraffic.com"
+FRONTEND_URL = "https://melbtraffic.com"
 
-# Services that must be running
-SERVICES = ["amip-api", "amip-bluetooth", "amip-refresh"]
+# Service identifiers now live in scripts/service_control.py (SERVICE_IDS),
+# which maps them per platform. Nothing here needs to know the names.
 
 # Data freshness thresholds (max age before considered stale)
 FRESHNESS = {
@@ -89,35 +91,37 @@ def log(msg):
     print(f"[{ts}] {msg}")
 
 def check_services(result, auto_restart=True):
-    """Check all AMIP systemd services are active. Restart if dead."""
-    for svc in SERVICES:
+    """Check every AMIP service is running. Restart any that are not.
+
+    Service supervision is delegated to scripts/service_control.py so this
+    function reads the same on the VPS (systemd) and the Mac (launchd).
+    """
+    controller = service_control.get_controller()
+    for svc in service_control.service_ids(controller):
         try:
-            r = subprocess.run(["systemctl", "is-active", svc],
-                               capture_output=True, text=True, timeout=5)
-            status = r.stdout.strip()
+            active = controller.is_active(svc)
         except Exception as e:
             result.fail(f"service/{svc}", f"check failed: {e}")
             continue
 
-        if status == "active":
+        if active:
             result.ok(f"service/{svc}", "active")
-        else:
-            result.fail(f"service/{svc}", f"status={status}")
-            if auto_restart:
-                log(f"  Restarting {svc}...")
-                try:
-                    subprocess.run(["sudo", "-n", "systemctl", "start", svc],
-                                   capture_output=True, timeout=10)
-                    # Verify it came up
-                    import time; time.sleep(3)
-                    r2 = subprocess.run(["systemctl", "is-active", svc],
-                                        capture_output=True, text=True, timeout=5)
-                    if r2.stdout.strip() == "active":
-                        log(f"  {svc} restarted successfully")
-                    else:
-                        log(f"  {svc} FAILED to restart")
-                except Exception as e:
-                    log(f"  {svc} restart error: {e}")
+            continue
+
+        result.fail(f"service/{svc}", "not running")
+        if not auto_restart:
+            continue
+
+        log(f"  Restarting {svc}...")
+        try:
+            controller.start(svc)
+            time.sleep(3)  # give the supervisor a moment to report the new state
+            if controller.is_active(svc):
+                log(f"  {svc} restarted successfully")
+            else:
+                log(f"  {svc} FAILED to restart")
+        except Exception as e:
+            log(f"  {svc} restart error: {e}")
 
 def check_data_freshness(result):
     """Check each data source is within its expected freshness window."""
