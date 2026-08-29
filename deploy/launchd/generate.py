@@ -8,10 +8,15 @@ edit rather than seven — which is how the old bluetooth-archive agent silently
 kept pointing at a pre-move path.
 
 Restart policy comes in two shapes:
-  * Long-running services use KeepAlive with a PathState guard. launchd runs
-    them only while the guard path exists, so an unmounted T9 volume stops the
-    stack cleanly instead of thrashing against a missing database, and mounting
-    the drive starts everything again with no intervention.
+  * Long-running services use KeepAlive with a PathState guard. Measured
+    behaviour: the guard is a START and RESTART-SUPPRESSION condition, NOT a
+    stop condition. While the guard path is missing launchd will not start or
+    restart the job, so an unmounted T9 volume does not produce a crash loop
+    against a missing database; when the drive reappears launchd starts the job
+    again with no intervention. A process that is ALREADY RUNNING when the
+    volume goes away keeps running — deleting the guard file does not signal it
+    (verified still alive at +30s). RunAtLoad also starts the job regardless of
+    the guard's state at load time.
   * The watchdog is oneshot, on a 15-minute StartInterval.
 
 Run: python3 deploy/launchd/generate.py

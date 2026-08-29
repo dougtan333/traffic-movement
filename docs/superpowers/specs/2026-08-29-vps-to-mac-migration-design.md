@@ -124,7 +124,7 @@ be dropped entirely.
 | D5 | ~~Enable automatic login~~ **Superseded 2026-08-29: keep FileVault on, accept manual unlock** | `fdesetup status` returned On. macOS does not offer auto-login while FileVault is enabled — the volume needs a human before any login, so no agent runs until then. The disk holds live API keys and ~46 GB of data, and downtime is acceptable on this project, so encryption wins. Planned reboots use `sudo fdesetup authrestart`; an unplanned power cut means downtime until the Mac is unlocked by hand. |
 | D11 | filevault credentials move to `.env` **and** are rotated | Decided 2026-08-29. The old password sat in plaintext in a file read during this migration, and the app becomes publicly reachable again at a new hostname. |
 | D6 | LaunchAgents, not LaunchDaemons | Consistent with the Mac's existing projects; avoids root and pre-login volume-mount ordering |
-| D7 | Plists version-controlled in `deploy/launchd/`, symlinked into `~/Library/LaunchAgents` | The current untracked plist drifted into a stale path unnoticed |
+| D7 | Plists version-controlled in `deploy/launchd/`, **copied** into `~/Library/LaunchAgents` by `install.sh` | The current untracked plist drifted into a stale path unnoticed. Copies rather than symlinks because a symlink into `/Volumes/T9` dangles when T9 is not mounted, and `launchctl bootstrap` on a dangling symlink fails with `Bootstrap failed: 5` and is never retried |
 | D8 | Project venv at `venv/`, separate venv for filevault | Removes `--break-system-packages`; preserves filevault's isolation from the VPS |
 | D9 | filevault lands at `/Volumes/T9/Projects/filevault`, its own directory | It is a separate application; nesting it inside the traffic repo would confuse both |
 | D10 | Tunnel named `melbtraffic` | One named tunnel serves both hostnames; its generated UUID is the CNAME target for each |
@@ -133,7 +133,9 @@ be dropped entirely.
 
 ## 4. Components — LaunchAgents
 
-All plists live in `deploy/launchd/` and are symlinked into `~/Library/LaunchAgents`.
+All plists live in `deploy/launchd/` and are copied into `~/Library/LaunchAgents` by
+`deploy/launchd/install.sh`. Because they are copies, `generate.py` must always be
+followed by `install.sh`.
 
 | Label | Program | Restart policy |
 |---|---|---|
@@ -174,9 +176,21 @@ missing database. Each plist therefore uses:
 KeepAlive → PathState → "/Volumes/T9/Projects/Traffic Movement/db/amip.duckdb" = true
 ```
 
-launchd runs the job only while that path exists and starts it automatically when the
-drive appears — no polling wrapper script. `com.amip.bluetooth-archive` uses the same
-guard against its own DB path.
+Measured 2026-08-29, and stated precisely because the earlier wording overclaimed:
+PathState is a **start condition and a restart-suppression condition, not a stop
+condition**.
+
+- While the guard path is absent, launchd will not start the job and will not restart it
+  if it exits — so an unmounted T9 produces no crash loop against a missing database.
+- When the drive reappears, launchd starts the job automatically with a new PID — no
+  polling wrapper script.
+- A process that is **already running** when the volume disappears **keeps running**.
+  Deleting the guard file does not signal it (verified still alive at +30s). It will die
+  on its own I/O errors or not at all; launchd is not involved.
+- `RunAtLoad: true` starts the job at load time regardless of the guard's state, so a
+  successful boot proves the agents loaded — it proves nothing about the guard.
+
+`com.amip.bluetooth-archive` uses the same guard against its own DB path.
 
 ### Boot without login
 
@@ -247,7 +261,7 @@ through steps 1–2.
 4. **Switch DNS**
    - CNAME `api.melbtraffic.com` and `files.melbtraffic.com` to the tunnel
    - Update the Pages `VITE_API_URL` and redeploy the frontend
-5. **Soak 24–48 h** with the VPS powered but idle as a hot standby
+5. **Soak 24–48 h** with the VPS powered but idle and **stale** — its databases stopped advancing at step 2, so it is not a hot standby (see the plan's Task 9 Step 2 and its rollback procedure)
 6. **Cancel Contabo**
 
 ---
@@ -272,7 +286,7 @@ Before cancelling the VPS, all of the following must hold:
 
 | Risk | Mitigation |
 |---|---|
-| T9 unmounts while services run | `KeepAlive → PathState` stops jobs cleanly and restarts them on remount |
+| T9 unmounts while services run | Partly mitigated, not solved. `KeepAlive → PathState` suppresses restarts while the volume is away and restarts each agent automatically on remount, but it does **not** stop a process that is already running — that process keeps going against a vanished file. In practice a clean `diskutil unmount` will normally REFUSE while DuckDB holds the database open, which is an accidental protection; a forced eject or a yanked cable will not. Recovery from a forced eject is: kill the surviving processes, then remount and let launchd restart them |
 | Home internet or power outage takes the site down | Accepted — downtime is tolerable for this project (user decision) |
 | Bluetooth polling gap during freeze | Freeze window is minutes; gap is bounded and visible in `speed_observations` |
 | `bluetooth_archive.duckdb` has a gap from 2026-03-27 to cutover | Unrecoverable from the API (latest-only), but `speed.duckdb` covers the period and can backfill the archive if wanted |

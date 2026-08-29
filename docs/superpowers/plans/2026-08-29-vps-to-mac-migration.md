@@ -19,7 +19,7 @@
 - `CORS_ORIGINS=https://melbtraffic.com,https://www.melbtraffic.com,https://traffic-movement.pages.dev`
 - LaunchAgent labels: `com.amip.api`, `com.amip.bluetooth`, `com.amip.refresh`, `com.amip.bluetooth-archive`, `com.amip.filevault`, `com.amip.tunnel`, `com.amip.watchdog`
 - Volume guard path: `/Volumes/T9/Projects/Traffic Movement/db/amip.duckdb`
-- Plists are version-controlled in `deploy/launchd/` and symlinked into `~/Library/LaunchAgents` (D7)
+- Plists are version-controlled in `deploy/launchd/` and **copied** into `~/Library/LaunchAgents` by `install.sh` (D7). Copies, not symlinks: a symlink into `/Volumes/T9` dangles when T9 is not mounted, and `launchctl bootstrap` on a dangling symlink fails with `Bootstrap failed: 5` and is never retried. `generate.py` must therefore always be followed by `install.sh`
 - Test convention: standalone scripts with PASS/FAIL counters run via `python3`, matching `scripts/test_summaries.py`. No pytest.
 - **Tasks 1–8 must not modify the VPS in any way.** The live site stays up throughout. Task 9 is the first production-affecting step and requires explicit go-ahead.
 
@@ -33,10 +33,21 @@ The watchdog shells out to `systemctl` (`scripts/watchdog.py:95,109,113`), which
 - Create: `scripts/service_control.py`
 - Create: `scripts/test_service_control.py`
 - Modify: `scripts/watchdog.py:40-44` (constants), `scripts/watchdog.py:91-121` (`check_services`)
+- Modify: `scripts/daily_refresh.py` (four `sudo -n systemctl` call sites — see the note below)
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks
-- Produces: `service_control.get_controller(platform=None)` returning an object with `is_active(service_id) -> bool`, `start(service_id) -> bool` and attribute `platform_key -> str`; `service_control.service_ids(controller) -> list[str]`; module constant `SERVICE_IDS: dict[str, dict[str, str]]`
+- Produces: `service_control.get_controller(platform=None)` returning an object with `state(service_id) -> str`, `is_active(service_id) -> bool`, `start(service_id) -> bool`, `stop(service_id) -> bool` and attribute `platform_key -> str`; `service_control.service_ids(controller) -> list[str]`; `service_control.service_id_for(controller, logical_name) -> str`; `service_control.describe_state(state) -> str`; module constants `SERVICE_IDS: dict[str, dict[str, str]]`, `SERVICE_ORDER`, and the state constants `STATE_RUNNING` / `STATE_STOPPED` / `STATE_FAILED` / `STATE_NOT_LOADED` / `STATE_UNKNOWN`
+
+> **Amended after the final pre-cutover review (findings C2 and I7).** The code blocks below
+> are the original first-pass version and are kept for the record; `scripts/service_control.py`
+> as shipped is authoritative. Three things were added after they were written:
+> `stop()` on both controllers (`sudo -n systemctl stop <id>` / `launchctl kill TERM
+> gui/<uid>/<id>`); `start()` and `stop()` returning the subprocess return code as a boolean
+> instead of unconditionally `True`; and `state()`, which separates *not loaded at all* from
+> *loaded but stopped* so the watchdog log can say which. `daily_refresh.py` was rewired onto
+> the same controller — its four `sudo -n systemctl` calls were a permanent silent no-op under
+> launchd, because `sudo -n` finds no cached credential and exits 1 before `systemctl` runs.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -289,7 +300,7 @@ def service_ids(controller):
 python3 scripts/test_service_control.py
 ```
 
-Expected: `16 passed, 0 failed`, exit code 0
+Expected: `40 passed, 0 failed`, exit code 0 (16 original checks plus the 24 added for `stop()`, return-code-based success from `start()`/`stop()`, `state()` including the not-loaded case, `describe_state()` and `service_id_for()`)
 
 - [ ] **Step 5: Rewrite `check_services` to use the layer**
 
@@ -388,7 +399,7 @@ Seven agents share one shape and differ in a handful of fields. Hand-maintained 
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks
-- Produces: seven plists on disk; `install.sh` symlinks them into `~/Library/LaunchAgents` and loads them
+- Produces: seven plists on disk; `install.sh` copies them into `~/Library/LaunchAgents` and loads them
 
 - [ ] **Step 1: Write the generator**
 
@@ -405,10 +416,15 @@ edit rather than seven — which is how the old bluetooth-archive agent silently
 kept pointing at a pre-move path.
 
 Restart policy comes in two shapes:
-  * Long-running services use KeepAlive with a PathState guard. launchd runs
-    them only while the guard path exists, so an unmounted T9 volume stops the
-    stack cleanly instead of thrashing against a missing database, and mounting
-    the drive starts everything again with no intervention.
+  * Long-running services use KeepAlive with a PathState guard. Measured
+    behaviour: the guard is a START and RESTART-SUPPRESSION condition, NOT a
+    stop condition. While the guard path is missing launchd will not start or
+    restart the job, so an unmounted T9 volume does not produce a crash loop
+    against a missing database; when the drive reappears launchd starts the job
+    again with no intervention. A process that is ALREADY RUNNING when the
+    volume goes away keeps running — deleting the guard file does not signal it
+    (verified still alive at +30s). RunAtLoad also starts the job regardless of
+    the guard's state at load time.
   * The watchdog is oneshot, on a 15-minute StartInterval.
 
 Run: python3 deploy/launchd/generate.py
@@ -542,10 +558,23 @@ Create `deploy/launchd/install.sh`:
 
 ```bash
 #!/usr/bin/env bash
-# install.sh — Symlink the generated LaunchAgents into ~/Library/LaunchAgents
+# install.sh — Copy the generated LaunchAgents into ~/Library/LaunchAgents
 #
-# Symlinks rather than copies, so a regenerate is picked up without a reinstall
-# and the plists stay version-controlled in the repo (D7).
+# COPIES rather than symlinks. The repo lives on the external T9 volume, and a
+# symlink into it dangles whenever T9 is not mounted. Measured: `launchctl
+# bootstrap` on a dangling symlink fails with "Bootstrap failed: 5:
+# Input/output error" and launchd does NOT retry — so a reboot where login wins
+# the race against diskarbitrationd mounting T9 leaves every agent absent, with
+# no PathState guard to help (the guard lives inside the plist, which could not
+# be read) and no watchdog to self-heal (it is on T9 too). Copies live on the
+# internal, FileVault-protected disk and are always readable at login.
+#
+# The cost of copying: a regenerate is NOT picked up automatically.
+# ALWAYS run this script after `python3 deploy/launchd/generate.py`, then
+# bootout/bootstrap the affected agents for the new plist to take effect.
+#
+# The plists stay version-controlled in deploy/launchd/ (D7) — only the
+# propagation mechanism changed.
 #
 # Usage: bash deploy/launchd/install.sh [--load]
 #   --load also bootstraps each agent into the current GUI domain.
@@ -560,8 +589,11 @@ mkdir -p "$AGENT_DIR"
 
 for plist in "$HERE"/com.amip.*.plist; do
     label="$(basename "$plist" .plist)"
-    ln -sfn "$plist" "$AGENT_DIR/$label.plist"
-    echo "  linked $label"
+    # -f so an existing symlink from a previous install is replaced by a real
+    # file rather than written through to the target on T9.
+    rm -f "$AGENT_DIR/$label.plist"
+    cp "$plist" "$AGENT_DIR/$label.plist"
+    echo "  copied $label"
 
     if [[ "${1:-}" == "--load" ]]; then
         launchctl bootout "$DOMAIN/$label" 2>/dev/null || true
@@ -572,16 +604,18 @@ done
 
 echo
 echo "Done. Check status with: launchctl list | grep com.amip"
+echo "Remember: re-run this script after every generate.py, then bootout/bootstrap."
 ```
 
-- [ ] **Step 5: Verify the installer links without loading**
+- [ ] **Step 5: Verify the installer copies without loading**
 
 ```bash
 bash deploy/launchd/install.sh
 ls -l ~/Library/LaunchAgents/com.amip.*.plist
+plutil -lint ~/Library/LaunchAgents/com.amip.*.plist
 ```
 
-Expected: seven symlinks pointing into `/Volumes/T9/Projects/Traffic Movement/deploy/launchd/`. Do **not** pass `--load` yet — the venvs, the tunnel and the data are not in place until Tasks 3–8.
+Expected: seven **regular files** (no `->` arrows in `ls -l`, and the mode column starts with `-` not `l`), each linting `OK`. A symlink here is the C1 failure: it dangles whenever T9 is unmounted, and a bootstrap against a dangling symlink fails with `Bootstrap failed: 5: Input/output error` and is never retried. Do **not** pass `--load` yet — the venvs, the tunnel and the data are not in place until Tasks 3–8.
 
 - [ ] **Step 6: Commit**
 
@@ -590,8 +624,9 @@ git add deploy/launchd/
 git commit -m "feat: launchd agent definitions generated from one table
 
 Seven agents rendered from a single table in generate.py, so paths cannot
-drift per-file. Long-running agents use KeepAlive PathState guards so an
-unmounted T9 volume stops them cleanly and remounting restarts them."
+drift per-file. Long-running agents use KeepAlive PathState guards, which
+suppress restarts while T9 is absent and start each agent again on remount.
+The guard does not stop a process that is already running."
 ```
 
 ---
@@ -1113,9 +1148,15 @@ printing it.
 ssh amip "curl -s http://localhost:8000/api/health" | tee /tmp/vps-health-baseline.json
 ```
 
-Expected: JSON with `status`, `hourly_rows`, `stations`, `latest_data`. Task 10 compares against this exact output.
+Expected: JSON with `status`, `summary_rows`, `stations`, `latest_data`, `cache`. Task 10 compares against this exact output. Note the field is `summary_rows` (`count(*)` over `daily_station_summary`) — `hourly_rows` was removed by commit 36a76d8 and does not exist on either side.
 
-- [ ] **Step 2: Stop the VPS writers**
+- [ ] **Step 2: Stop the VPS writers — POINT OF NO PRACTICAL RETURN**
+
+**This is the irreversible step, not Task 14 Step 5.** From the moment these writers stop, the
+Mac's databases advance every five minutes and the VPS's do not. There is no automatic
+reverse-sync. By the end of Task 13's 24–48h soak the VPS is that far stale, so "falling back
+to the VPS" means silently discarding a day or two of Bluetooth polling, fuel snapshots and
+summaries. Do not start this step until Tasks 1–8 have all passed.
 
 ```bash
 ssh amip "sudo systemctl stop amip-bluetooth amip-refresh amip-watchdog.timer"
@@ -1123,6 +1164,23 @@ ssh amip "systemctl is-active amip-bluetooth amip-refresh || true"
 ```
 
 Expected: both report `inactive`. The API stays running so the site keeps serving reads during the delta.
+
+**Rollback procedure (Mac → VPS reverse-sync).** If the Mac has to be abandoned after this
+point, the data has to be carried back by hand — this is the mirror of Step 3, and it is the
+only thing that makes a fallback non-destructive:
+
+```bash
+cd "/Volumes/T9/Projects/Traffic Movement"
+# Stop the Mac writers first, so nothing is mid-write during the copy.
+launchctl bootout gui/$(id -u)/com.amip.bluetooth
+launchctl bootout gui/$(id -u)/com.amip.refresh
+ssh amip "sudo systemctl stop amip-api"
+rsync -avh --progress db/amip.duckdb db/speed.duckdb amip:/opt/amip/db/
+ssh amip "sudo systemctl start amip-api amip-bluetooth amip-refresh amip-watchdog.timer"
+```
+
+Then revert the DNS records and the Pages `VITE_API_URL` (Task 11 in reverse). Verify
+`summary_rows` on the VPS matches the Mac before pointing DNS back.
 
 - [ ] **Step 3: Final delta of the two live databases**
 
@@ -1161,7 +1219,7 @@ launchctl bootout gui/$(id -u)/com.amip.bluetooth-archive 2>/dev/null || true
 rm -f ~/Library/LaunchAgents/com.amip.bluetooth-archive.plist
 ```
 
-Then re-link, since Task 2's installer wrote a symlink of the same name:
+Then re-run the installer, since Task 2's installer wrote a copy of the same name:
 
 ```bash
 bash deploy/launchd/install.sh
@@ -1189,7 +1247,7 @@ curl -s http://localhost:8000/api/health | tee /tmp/mac-health.json
 echo "--- baseline ---"; cat /tmp/vps-health-baseline.json
 ```
 
-Expected: `hourly_rows` and `stations` match the baseline recorded in Task 9 exactly. `latest_data` matches too. A mismatch means the delta rsync did not land — do not proceed to DNS.
+Expected: `summary_rows` and `stations` match the baseline recorded in Task 9 exactly. `latest_data` matches too. Compare the actual field names in both files — a key that is absent from both sides trivially "matches" and gates nothing. A mismatch means the delta rsync did not land — **do not proceed to DNS**.
 
 - [ ] **Step 5: Verify the Bluetooth poller is writing again**
 
@@ -1316,24 +1374,59 @@ launchctl list | grep com.amip
 curl -s https://api.melbtraffic.com/api/health
 ```
 
-Expected: the same seven agents with fresh PIDs, and the public health endpoint answering. This proves T9 mounted, the PathState guards released, the agents started, and the tunnel reconnected — with no intervention.
+Expected: the same seven agents with fresh PIDs, and the public health endpoint answering. This proves the login completed, T9 mounted, the agents loaded and started, and the tunnel reconnected — with no intervention. It proves nothing about the PathState guards: `RunAtLoad: true` starts each job at load time whether the guard is satisfied or not. Step 4 is what tests the guard.
 
 - [ ] **Step 4: Verify the volume guard actually works**
 
-Confirm the PathState mechanism does what Task 2 claims, rather than assuming it:
+PathState is a **start condition and a restart-suppression condition, not a stop condition**
+(measured 2026-08-29: with the guard file deleted, a running KeepAlive job was still alive at
++30s). Test what it really provides, in three parts:
 
 ```bash
-launchctl list | grep com.amip.api          # note the PID
+launchctl list | grep com.amip.api          # note the PID -> call it PID_A
+
+# Part 1 — unmount. Expect this to be REFUSED while DuckDB holds the DB open.
 diskutil unmount /Volumes/T9
+```
+
+If `diskutil unmount` refuses with "Resource busy", that is the expected and desirable
+outcome: an open DuckDB file is what protects the stack from a casual eject. Record it and
+continue with the forced path below, which is what a yanked cable looks like.
+
+```bash
+diskutil unmount force /Volumes/T9
 sleep 10
-launchctl list | grep com.amip.api          # expect no PID, or absent
+launchctl list | grep com.amip.api          # PID_A is very likely STILL THERE — expected
+```
+
+Expected: the already-running process **keeps running**. That is not a bug and not a reason to
+change the guard; launchd never signals it.
+
+```bash
+# Part 2 — kill the survivor while the volume is away.
+kill <PID_A>
+sleep 20
+launchctl list | grep com.amip.api          # expect no PID (the guard suppresses the restart)
+```
+
+Expected: launchd does **not** respawn it while `/Volumes/T9` is absent. If it instead
+crash-loops with a non-zero exit status, the guard path in `generate.py` is wrong — fix and
+regenerate before relying on it.
+
+```bash
+# Part 3 — remount and let launchd do the work. Touch nothing else.
 diskutil mount /Volumes/T9
 sleep 20
-launchctl list | grep com.amip.api          # expect a new PID
+launchctl list | grep com.amip.api          # expect a NEW PID, different from PID_A
 curl -s http://localhost:8000/api/health
 ```
 
-Expected: the agent stops while the volume is away and restarts on remount. If it instead crash-loops with a non-zero exit status while unmounted, the guard path in `generate.py` is wrong — fix and regenerate before relying on it.
+Expected: the agent starts on its own with a new PID and the health endpoint answers. That —
+auto-start on remount, and no thrashing while the volume is away — is the whole value of the
+guard.
+
+If any process survived Part 1 and was still holding a file handle at Part 3, kill it before
+remounting; two writers on one DuckDB file is worse than either failure mode above.
 
 ---
 
@@ -1347,7 +1440,7 @@ Expected: the agent stops while the volume is away and restarts on remount. If i
 
 - [ ] **Step 1: Let it run for 24–48 hours**
 
-The VPS stays powered with its writers stopped, as a hot standby. Do not cancel it yet.
+The VPS stays powered with its writers stopped — **powered but stale, not a hot standby**. Its databases froze at Task 9 Step 2 and fall further behind every hour of the soak, so cutting back to it is a data-losing operation unless the reverse-sync in Task 9 Step 2's rollback procedure is run first. Do not cancel it yet.
 
 - [ ] **Step 2: Verify polling has no gaps across the soak**
 
@@ -1423,6 +1516,8 @@ Only after Task 13 passes in full.
 **Files:**
 - Modify: `DEPLOY.md`
 - Modify: `RUNTIME.md` (stale `/Users/doug/Projects/Traffic Movement` paths throughout)
+- Modify: `api/main.py` (docstring line 9 still names `/Users/doug/Projects/Traffic Movement`)
+- Modify: `scripts/watchdog.py` (docstring still describes systemd timers and journalctl)
 
 **Interfaces:**
 - Consumes: a verified Mac stack
@@ -1442,14 +1537,24 @@ ssh amip "sudo tar czf - /opt/filevault" > db/backups/filevault-final-$(date +%Y
 
 Replace the VPS provisioning content with: the launchd architecture diagram from the spec, how to start and stop agents (`launchctl bootout` / `bootstrap` via `deploy/launchd/install.sh`), how to regenerate plists after a path change (`python3 deploy/launchd/generate.py`), where logs live (`logs/<label>.log`), how the tunnel is configured, and how to restore from `db/backups/`. Delete the Contabo, Caddy, DuckDNS and systemd sections.
 
-- [ ] **Step 3: Fix the stale paths in `RUNTIME.md`**
+- [ ] **Step 3: Fix the stale paths and stale platform references**
 
-Every path reads `/Users/doug/Projects/Traffic Movement`; the project is at `/Volumes/T9/Projects/Traffic Movement`. Update them, and replace the `pip3 install --break-system-packages` guidance with the venv from Task 3.
+`RUNTIME.md` — every path reads `/Users/doug/Projects/Traffic Movement`; the project is at `/Volumes/T9/Projects/Traffic Movement`. Update them, and replace the `pip3 install --break-system-packages` guidance with the venv from Task 3.
+
+Two source docstrings carry the same staleness and are part of this step:
+
+- `api/main.py` line 9 — `From project root: /Users/doug/Projects/Traffic Movement`.
+- `scripts/watchdog.py` — the module docstring still says "Runs every 15 minutes via systemd timer", "captured by journalctl" and "Designed to run as: systemd timer". On the Mac it is `com.amip.watchdog` with `StartInterval 900`, logging to `logs/com.amip.watchdog.log`.
+
+```bash
+grep -rn "/Users/doug/Projects" RUNTIME.md DEPLOY.md api/ scripts/
+grep -rn "journalctl\|systemd timer" scripts/watchdog.py
+```
 
 - [ ] **Step 4: Commit the documentation**
 
 ```bash
-git add DEPLOY.md RUNTIME.md
+git add DEPLOY.md RUNTIME.md api/main.py scripts/watchdog.py
 git commit -m "docs: rewrite deployment docs for local Mac topology
 
 Replaces the Contabo/Caddy/systemd runbook with the launchd + Cloudflare
@@ -1468,6 +1573,6 @@ The DuckDNS hostnames `melbtraffic.duckdns.org` and `softfiles.duckdns.org` can 
 
 **Spec coverage:** §2 architecture → Tasks 2, 6, 10, 11. §3 decisions D1/D10 → Task 6; D2 → Tasks 8, 14; D3 → Task 7; D4 → Tasks 2, 10 Step 1; D5 → Task 5; D6/D7 → Task 2; D8/D9 → Tasks 3, 8. §5 macOS concerns → Tasks 5, 12. §6 code changes → Tasks 1 (watchdog), 2 (plists), 4 (.env), 11 (Pages), 14 (docs). §7 cutover → Tasks 7–11. §8 verification → Tasks 10, 12, 13. §9 risks → guard tested in Task 12 Step 4, stale DB in Task 7 Step 1, encryption in Task 5 Step 3, credentials in Task 8 Step 5, tunnel credentials backed up in Task 6 Step 7. §10 open question → Task 8 Step 5.
 
-**Type consistency:** `get_controller(platform=None)`, `is_active(service_id)`, `start(service_id)`, `platform_key`, `service_ids(controller)`, `SERVICE_IDS`, `SERVICE_ORDER` — defined in Task 1 Step 3, exercised in Task 1 Step 1's tests, consumed in Task 1 Step 5. Agent labels are identical across `generate.py`, `install.sh`, `SERVICE_IDS` and every verification command.
+**Type consistency:** `get_controller(platform=None)`, `state(service_id)`, `is_active(service_id)`, `start(service_id)`, `stop(service_id)`, `platform_key`, `service_ids(controller)`, `service_id_for(controller, name)`, `describe_state(state)`, `SERVICE_IDS`, `SERVICE_ORDER`, `STATE_*` — defined in Task 1 Step 3 (as amended by findings C2/I7), exercised in Task 1 Step 1's tests, consumed in Task 1 Step 5 and in `scripts/daily_refresh.py`. Agent labels are identical across `generate.py`, `install.sh`, `SERVICE_IDS` and every verification command.
 
 **Known deviation from strict TDD:** only Task 1 has a red-green cycle. Tasks 2–14 are infrastructure and data movement, where the equivalent discipline is a verification step with an explicit expected result before moving on — which every task carries.
