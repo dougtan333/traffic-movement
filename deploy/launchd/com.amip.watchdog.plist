@@ -18,9 +18,9 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.watchdog.log</string>
+	<string>/Users/doug/Library/Logs/amip/com.amip.watchdog.log</string>
 	<key>StandardOutPath</key>
-	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.watchdog.log</string>
+	<string>/Users/doug/Library/Logs/amip/com.amip.watchdog.log</string>
 	<key>StartInterval</key>
 	<integer>900</integer>
 	<key>WorkingDirectory</key>

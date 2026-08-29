@@ -27,9 +27,9 @@
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.tunnel.log</string>
+	<string>/Users/doug/Library/Logs/amip/com.amip.tunnel.log</string>
 	<key>StandardOutPath</key>
-	<string>/Volumes/T9/Projects/Traffic Movement/logs/com.amip.tunnel.log</string>
+	<string>/Users/doug/Library/Logs/amip/com.amip.tunnel.log</string>
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>WorkingDirectory</key>

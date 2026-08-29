@@ -28,7 +28,18 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent                      # /Volumes/T9/Projects/Traffic Movement
 FILEVAULT = REPO.parent / "filevault"          # /Volumes/T9/Projects/filevault
-LOGS = REPO / "logs"
+
+# Logs CANNOT live beside the code on T9. Measured: launchd resolves
+# StandardOutPath/StandardErrorPath before the program runs, and if that path
+# is on the external T9 volume the job fails to start at all — exit 78
+# (EX_CONFIG), no PID assigned, no log written anywhere to explain why.
+# Confirmed by isolation: taking the real com.amip.bluetooth plist and
+# changing only its two log paths from T9 to /tmp made it start immediately.
+# ~/Library/Logs is the conventional macOS location for user-level app logs,
+# it lives on the internal, FileVault-protected disk, and launchd can write
+# to it. Do not move this back to the repo — it will silently break every
+# agent's startup again.
+LOGS = Path.home() / "Library" / "Logs" / "amip"
 
 PY = str(REPO / "venv" / "bin" / "python3")
 UVICORN = str(REPO / "venv" / "bin" / "uvicorn")
