@@ -32,6 +32,30 @@ BASE_URL = "https://api.opendata.transport.vic.gov.au/opendata/roads/bluetooth-t
 AEST = timezone(timedelta(hours=10))
 POLL_INTERVAL = 300  # 5 minutes
 
+# Seconds past each 5-minute boundary at which THIS poller fires.
+#
+# scripts/poll_bluetooth.py (the production poller feeding speed.duckdb) polls on
+# the boundary itself. Both pollers hit the same VIC endpoint with the same API
+# key, so firing together tripped its rate limit: measured 2026-08-30, 26 good
+# polls to 1x HTTP 429 on the production poller and 28 to 2 here. A 429 costs a
+# whole 5-minute interval because the poller then backs off for POLL_INTERVAL.
+# Offsetting this one to the midpoint keeps both datasets without the collision.
+POLL_OFFSET = 150
+
+
+def seconds_until_next_slot():
+    """Seconds to wait so the next poll lands POLL_OFFSET past a 5-min boundary.
+
+    Computed from wall-clock time rather than by sleeping a fixed interval, so
+    the offset self-corrects after a slow poll, a retry, or a launchd restart
+    instead of drifting back into the production poller.
+    """
+    now = time.time()
+    slot = (now // POLL_INTERVAL) * POLL_INTERVAL + POLL_OFFSET
+    if slot <= now:
+        slot += POLL_INTERVAL
+    return slot - now
+
 
 def load_api_key():
     """Read VIC_BLUETOOTH_API_KEY from parent project .env file."""
@@ -145,8 +169,10 @@ def main():
     print(f"  API key: ...{api_key[-6:]}")
 
     if args.loop:
-        print(f"  Mode: continuous (every {POLL_INTERVAL}s)\n")
+        print(f"  Mode: continuous (every {POLL_INTERVAL}s, "
+              f"{POLL_OFFSET}s past each boundary to avoid the production poller)\n")
         while True:
+            time.sleep(seconds_until_next_slot())
             try:
                 count, ts = poll(api_key)
                 print(f"  {ts}  stored {count} readings")
@@ -154,7 +180,6 @@ def main():
                 print(f"  NETWORK ERROR: {e}")
             except Exception as e:
                 print(f"  ERROR: {e}")
-            time.sleep(POLL_INTERVAL)
     else:
         count, ts = poll(api_key)
         print(f"  {ts}  stored {count} readings")
