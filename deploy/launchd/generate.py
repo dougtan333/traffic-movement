@@ -42,8 +42,14 @@ FILEVAULT = REPO.parent / "filevault"          # /Volumes/T9/Projects/filevault
 LOGS = Path.home() / "Library" / "Logs" / "amip"
 
 PY = str(REPO / "venv" / "bin" / "python3")
-UVICORN = str(REPO / "venv" / "bin" / "uvicorn")
-GUNICORN = str(FILEVAULT / "venv" / "bin" / "gunicorn")
+# Console-script wrappers (venv/bin/uvicorn, venv/bin/gunicorn) CANNOT be used here.
+# They are text scripts that launchd's /bin/sh must READ from /Volumes/T9, and macOS
+# denies that read to launchd-spawned processes: the agent dies with
+# "/bin/sh: .../venv/bin/uvicorn: Operation not permitted" (exit 126), or for gunicorn
+# a PermissionError on pyvenv.cfg (exit 1). Invoking the module through the venv's
+# python3 works because that symlink resolves to /opt/homebrew/... on the INTERNAL
+# disk, so nothing executable is read from the external volume. Measured 2026-08-30.
+FILEVAULT_PY = str(FILEVAULT / "venv" / "bin" / "python3")
 CLOUDFLARED = "/opt/homebrew/bin/cloudflared"
 
 # Existence of the main database proves both that T9 is mounted and that the
@@ -54,7 +60,7 @@ GUARD_FILEVAULT = str(FILEVAULT / "app.py")
 AGENTS = [
     {
         "label": "com.amip.api",
-        "args": [UVICORN, "api.main:app", "--host", "127.0.0.1", "--port", "8000"],
+        "args": [PY, "-m", "uvicorn", "api.main:app", "--host", "127.0.0.1", "--port", "8000"],
         "cwd": str(REPO),
         "guard": GUARD_REPO,
     },
@@ -83,7 +89,7 @@ AGENTS = [
     },
     {
         "label": "com.amip.filevault",
-        "args": [GUNICORN, "-w", "4", "-b", "127.0.0.1:5050", "app:app"],
+        "args": [FILEVAULT_PY, "-m", "gunicorn", "-w", "4", "-b", "127.0.0.1:5050", "app:app"],
         "cwd": str(FILEVAULT),
         "guard": GUARD_FILEVAULT,
     },

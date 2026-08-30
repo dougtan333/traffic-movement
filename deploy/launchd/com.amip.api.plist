@@ -19,7 +19,9 @@
 	<string>com.amip.api</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Volumes/T9/Projects/Traffic Movement/venv/bin/uvicorn</string>
+		<string>/Volumes/T9/Projects/Traffic Movement/venv/bin/python3</string>
+		<string>-m</string>
+		<string>uvicorn</string>
 		<string>api.main:app</string>
 		<string>--host</string>
 		<string>127.0.0.1</string>

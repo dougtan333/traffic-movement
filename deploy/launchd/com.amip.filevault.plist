@@ -19,7 +19,9 @@
 	<string>com.amip.filevault</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Volumes/T9/Projects/filevault/venv/bin/gunicorn</string>
+		<string>/Volumes/T9/Projects/filevault/venv/bin/python3</string>
+		<string>-m</string>
+		<string>gunicorn</string>
 		<string>-w</string>
 		<string>4</string>
 		<string>-b</string>
