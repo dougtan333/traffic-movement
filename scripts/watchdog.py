@@ -46,7 +46,11 @@ FRONTEND_URL = "https://melbtraffic.com"
 
 # Data freshness thresholds (max age before considered stale)
 FRESHNESS = {
-    "speed_observations":     {"db": "speed",  "max_age_hours": 0.25,  "query": "SELECT max(ts_interval) FROM speed_observations"},
+    # The VIC bluetooth feed publishes a new ts_interval every ~30-36 min, not every 5 —
+    # measured over 7 days of distinct intervals (modal gaps 30-36 min, worst normal 36).
+    # The pollers run every 5 min and store all 4,711 links per new interval; a tighter
+    # threshold than the source cadence WARNs on ~half of all runs regardless of health.
+    "speed_observations":     {"db": "speed",  "max_age_hours": 1.0,   "query": "SELECT max(ts_interval) FROM speed_observations"},
     "fuel_prices":            {"db": "main",   "max_age_hours": 36,    "query": "SELECT max(snapshot_date) FROM fuel_prices"},
     "wholesale_prices":       {"db": "main",   "max_age_hours": 72,    "query": "SELECT max(date) FROM wholesale_prices"},
     "daily_station_summary":  {"db": "main",   "max_age_hours": 1080,  "query": "SELECT max(day) FROM daily_station_summary"},  # ~45 days (monthly source)
